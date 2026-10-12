@@ -8,7 +8,7 @@ Nguồn sự thật (single source of truth) cho mọi thứ chạy trên Kubern
 |---|---|---|
 | `local/` | 1 | ✅ docker-compose chạy toàn bộ stack trên máy |
 | `bootstrap/`, `platform/`, `platform-resources/`, `charts/`, `apps/` | 3 | ✅ k3d + Argo CD + Kong + CNPG + Strimzi + 12 app (dev/prod) |
-| Keycloak + Kong JWT trên K8s | 4 | ⏳ |
+| Keycloak Operator + realm-as-code + Kong JWT trên K8s | 4 | ✅ |
 | Observability trên K8s | 5 | ⏳ |
 | GKE | 6 | ⏳ |
 
@@ -29,7 +29,7 @@ k3d cluster delete shoplite     # xoá hẳn
 | http://dev.shop.localhost | Môi trường dev (namespace `shop-dev`) |
 | http://shop.localhost | Môi trường prod (namespace `shop-prod`) |
 
-Login / đặt hàng cần Keycloak → Phase 4. Phase 3 kiểm tra được: `curl http://dev.shop.localhost/api/products`.
+Login / đặt hàng: xem phần Phase 4 bên dưới.
 
 ### Cây Application
 
@@ -60,6 +60,60 @@ Sync wave chỉ có tác dụng giữa các Application con nhờ health check `
 | Bảo mật pod | non-root, read-only root FS, drop ALL capabilities, seccomp | Đạt chuẩn Pod Security "restricted" |
 | AppProject `shop` | chỉ deploy từ repo này vào `shop-dev` / `shop-prod` | App lỗi cấu hình không thể ghi vào namespace khác |
 | TLS | chưa (HTTP trên `*.localhost`) | cert-manager + Let's Encrypt cần domain thật → Phase 6 |
+
+## Keycloak + Kong JWT (Phase 4)
+
+| URL | Gì |
+|---|---|
+| http://auth.localhost | Keycloak. Admin console: user/password trong Secret `keycloak/keycloak-initial-admin` |
+| http://dev.shop.localhost, http://shop.localhost | Bấm **Login with Keycloak**. User: `alice` (customer), `bob` (admin), `devops1` (group devops) |
+
+Mật khẩu user demo được sinh ngẫu nhiên lúc bootstrap, không nằm trong git:
+
+```bash
+kubectl get secret -n keycloak realm-secrets -o jsonpath='{.data.ALICE_PASSWORD}' | base64 -d
+```
+
+### Luồng xác thực
+
+```
+Browser ──Auth Code + PKCE──► Kong ──► Keycloak (auth.localhost)        iss = http://auth.localhost/realms/shoplite
+   │ Bearer token
+   ▼
+Kong: plugin jwt-keycloak kiểm chữ ký RS256 + exp (public key trong Secret kong/keycloak-jwt)
+   │                     401 nếu thiếu/sai token, 429 nếu quá rate limit
+   ▼
+Service: Spring kiểm lại chữ ký + iss, phân quyền theo role (alice POST /api/products → 403)
+   │ lấy public key qua keycloak-service.keycloak:8080 (trong cluster, không qua Kong)
+   ▼
+order-service ──client credentials (token endpoint trong cluster)──► product-service /reserve
+```
+
+### Cây Application (thêm)
+
+```
+platform/
+├── keycloak-operator  wave -10  operator chính thức (keycloak-k8s-resources 26.7.5), namespace keycloak
+├── keycloak           wave   0  platform-resources/keycloak:
+│                                  keycloak-db (CNPG) → Keycloak CR → Ingress auth.localhost
+│                                  → Job realm-import (PostSync hook, keycloak-config-cli áp realm.yaml)
+└── kong-config        wave   0  platform-resources/kong: KongClusterPlugin + KongConsumer
+```
+
+Sửa realm = sửa `platform-resources/keycloak/realm.yaml` rồi push. Argo CD sync app `keycloak` và chạy lại Job `realm-import`. Sửa tay trong admin console sẽ bị ghi đè ở lần chạy sau.
+
+### Quyết định thiết kế
+
+| Chủ đề | Chọn | Vì sao |
+|---|---|---|
+| Realm-as-code | keycloak-config-cli (Job PostSync) | `KeycloakRealmImport` của operator chỉ import lần đầu, không update |
+| Secret | `bootstrap/secrets.sh` sinh khoá RSA của realm, client secret, mật khẩu demo | Không secret nào trong git. GKE thay bằng External Secrets + Secret Manager (Phase 6) |
+| Khoá ký token | Sinh trước, private → Keycloak, public → Kong | Kong OSS không có plugin OIDC, nên không tự tải JWKS. Xoay khoá: `bash bootstrap/secrets.sh --rotate` rồi sync lại app `keycloak` |
+| Plugin Kong | `KongClusterPlugin`; route tự chọn qua `ingress.routes[].plugins` | Dùng chung cho `shop-dev` và `shop-prod`. Mỗi route là 1 Ingress, nên `/api/products` tách GET (công khai) và POST/PUT (cần JWT) |
+| CORS | Opt-in trên route `/api/*`, không global | Plugin global ghi đè CORS của Keycloak trên `auth.localhost` và làm hỏng login từ browser |
+| Service xác thực token | `issuer-uri` = URL public, `jwk-set-uri` = Service trong cluster | Pod không cần resolve `auth.localhost`; Kong sập thì service vẫn kiểm được token |
+| Realm | 1 realm `shoplite` cho cả dev và prod | Demo gọn (1 issuer, 1 credential Kong). Thực tế prod nên có realm hoặc Keycloak riêng |
+| Rate limit | 20 req/phút theo IP trên `/api/orders` | Ở k3d, LB rải request qua 3 node (SNAT) nên Kong thấy 3 IP → giới hạn thực tế khoảng 60/phút. GKE với `externalTrafficPolicy: Local` sẽ giữ IP thật |
 
 ## Chạy local (Phase 1)
 
