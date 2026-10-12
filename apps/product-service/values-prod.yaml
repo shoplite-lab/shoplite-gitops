@@ -1,8 +1,7 @@
 # image.tag changes only through a promote PR (Actions > promote).
 image:
   repository: ghcr.io/shoplite-lab/shoplite-product-service
-  tag: main
-
+  tag: 09a4d4386192ffb4ac5a207a2327d45e3b735784
 ingress:
   host: shop.localhost
 # Prod runs 2 replicas spread over nodes; the PDB keeps 1 up while a node is drained.
