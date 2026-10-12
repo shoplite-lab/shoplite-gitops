@@ -13,8 +13,11 @@ runAsUser: 10001 # USER in the services' Dockerfiles
 probes:
   liveness: /actuator/health/liveness
   readiness: /actuator/health/readiness
-  # startupProbe allows up to 5s x 36 = 3 min for the JVM to boot before liveness kicks in.
-  startupFailureThreshold: 36
+  # startupProbe allows up to 5s x 120 = 10 min for the JVM to boot before liveness kicks in.
+  # Only a ceiling: a pod is Ready as soon as it answers. On a laptop a dozen JVMs (plus the
+  # OTel agent) starting together share 8 cores; 3 min was not enough and every probe kill
+  # restarted the boot from scratch.
+  startupFailureThreshold: 120
 
 # Plain environment variables: NAME: value
 env: {}
