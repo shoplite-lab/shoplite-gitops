@@ -9,12 +9,12 @@ Nguồn sự thật (single source of truth) cho mọi thứ chạy trên Kubern
 | `local/` | 1 | ✅ docker-compose chạy toàn bộ stack trên máy |
 | `bootstrap/`, `platform/`, `platform-resources/`, `charts/`, `apps/` | 3 | ✅ k3d + Argo CD + Kong + CNPG + Strimzi + 12 app (dev/prod) |
 | Keycloak Operator + realm-as-code + Kong JWT trên K8s | 4 | ✅ |
-| Observability trên K8s | 5 | ⏳ |
+| Observability (OTel, Prometheus, Loki, Tempo, Grafana) + SSO Grafana/Argo CD | 5 | ✅ |
 | GKE | 6 | ⏳ |
 
 ## Kubernetes local (Phase 3)
 
-Yêu cầu: Docker Desktop (≥ 10 GB RAM), `k3d`, `kubectl`, `helm`. Port 80/443 trên máy phải trống.
+Yêu cầu: Docker Desktop (≥ 20 GB RAM cho VM, xem bài học Phase 5), `k3d`, `kubectl`, `helm`. Port 80/443 trên máy phải trống.
 
 ```bash
 bash bootstrap/up.sh            # k3d cluster -> helm install Argo CD -> apply root app
@@ -114,6 +114,67 @@ Sửa realm = sửa `platform-resources/keycloak/realm.yaml` rồi push. Argo CD
 | Service xác thực token | `issuer-uri` = URL public, `jwk-set-uri` = Service trong cluster | Pod không cần resolve `auth.localhost`; Kong sập thì service vẫn kiểm được token |
 | Realm | 1 realm `shoplite` cho cả dev và prod | Demo gọn (1 issuer, 1 credential Kong). Thực tế prod nên có realm hoặc Keycloak riêng |
 | Rate limit | 20 req/phút theo IP trên `/api/orders` | Ở k3d, LB rải request qua 3 node (SNAT) nên Kong thấy 3 IP → giới hạn thực tế khoảng 60/phút. GKE với `externalTrafficPolicy: Local` sẽ giữ IP thật |
+
+## Observability + SSO cho tool vận hành (Phase 5)
+
+| URL | Gì |
+|---|---|
+| http://grafana.localhost | Grafana, tự chuyển sang Keycloak. `devops1` → Admin, group `viewers` → Viewer, user khác bị từ chối. Admin dự phòng: `/login?disableAutoLogin`, user `admin`, password trong Secret `observability/grafana-secrets` |
+| http://argocd.localhost | Bấm **Log in via Keycloak**. Group `devops` → `role:admin`, `viewers` → `role:readonly`, user khác vào được nhưng không thấy app nào |
+
+Đăng nhập Shop bằng `devops1` trước, sau đó mở Grafana và Argo CD sẽ vào thẳng, không hỏi lại password (cùng session Keycloak). Logout ở Grafana cũng kết thúc session Keycloak (single logout).
+
+### Luồng dữ liệu
+
+```
+                       ┌─ traces ──► Tempo ──(metrics generator: service graph, span metrics)──┐
+Kong (plugin otel) ───►│                                                                        ▼
+Java agent (OTLP) ────►  OTel Collector ── metrics ──► Prometheus ◄── scrape: Kong, CNPG, Kafka Exporter, k8s
+                                                          │
+stdout JSON (có trace_id) ──► Alloy ──► Loki              ▼
+                                                     Grafana: metric → exemplar → trace → log và ngược lại
+```
+
+- **Không sửa code service**: Java agent được OTel Operator inject khi pod khởi động, nhờ annotation `instrumentation.opentelemetry.io/inject-java` (chart: `observability.enabled: true`).
+- **Một trace xuyên suốt**: `kong` → `order-service` → `product-service` (REST) → Kafka → `notification-service`, kèm span JDBC/Hibernate/Redis. Kong tạo root span và chuyền header W3C `traceparent` xuống.
+- **Log ↔ trace**: Spring Boot ghi log JSON (`LOGGING_STRUCTURED_FORMAT_CONSOLE=logstash`); agent gắn `trace_id` vào MDC; Alloy đưa `trace_id` thành structured metadata trong Loki. Mở một dòng log → **View trace**; mở một span trong Tempo → **Logs for this span**.
+
+### Cây Application (thêm)
+
+```
+platform/
+├── local-dns               wave -30  ConfigMap coredns-custom: auth.localhost → Kong (chỉ dùng cho k3d)
+├── cert-manager            wave -15  cert cho webhook của các operator (Phase 6: Let's Encrypt)
+├── opentelemetry-operator  wave -10
+├── kube-prometheus-stack   wave -10  Prometheus, Alertmanager, Grafana (SSO), node-exporter, kube-state-metrics
+├── loki, tempo, alloy      wave -10
+└── observability           wave   0  platform-resources/observability: Collector, Instrumentation,
+                                      PodMonitor (Kong, CNPG, Kafka Exporter), PrometheusRule, dashboard
+```
+
+Dashboard: **ShopLite overview** (RED theo service, JVM heap, Kafka lag, service graph, log WARN/ERROR) và thư mục **Community** (Kong, CloudNativePG, Kafka Exporter, tải từ grafana.com). Alert mẫu: `ServiceDown`, `HighErrorRate` (> 5% 5xx), `KafkaConsumerLagHigh`.
+
+### Quyết định thiết kế
+
+| Chủ đề | Chọn | Vì sao |
+|---|---|---|
+| Instrument service | OTel Java agent do operator inject | Không động vào code/Dockerfile. Spring, JDBC, Kafka, Redis đều có span |
+| Đường đi telemetry | Mọi thứ qua 1 Collector | Service chỉ biết 1 endpoint OTLP; đổi backend chỉ sửa `collector.yaml` |
+| Metrics service | OTLP push vào Prometheus (`enableOTLPReceiver`) | Không cần ServiceMonitor cho từng app. Metric có label `k8s_namespace_name` để lọc dev/prod |
+| Log | stdout JSON → Alloy → Loki, agent không gửi log | Đúng 12-factor: app chỉ ghi stdout. Alloy đọc log qua Kubernetes API nên 1 replica là đủ, không cần DaemonSet |
+| Chart Loki/Tempo | `grafana-community` | Chart OSS đã chuyển khỏi `grafana/` (giờ `grafana/loki` là bản enterprise) |
+| SSO Grafana | auth URL public, token/userinfo trong cluster | Giống service ở Phase 4: Grafana không cần resolve `auth.localhost` |
+| SSO Argo CD | Rewrite CoreDNS `auth.localhost` → Kong | Argo CD bắt buộc đọc discovery tại `<issuer>/.well-known/...`, không tách URL được. Trên GKE có DNS thật nên bỏ app `local-dns` |
+| Admin password | Grafana: Secret do `secrets.sh` tạo; Argo CD: giữ `admin` làm dự phòng | Chart Grafana tự sinh password mới ở mỗi lần render → Argo CD thấy OutOfSync mãi |
+| Webhook cert | cert-manager | Cert tự sinh của chart đổi ở mỗi lần render; Helm hook Job không hợp với Argo CD |
+
+### Bài học khi triển khai
+
+- **RAM**: stack đầy đủ (16 JVM lúc rollout + LGTM) cần Docker VM khoảng 20GB. Với 16GB, swap đầy, API server timeout, node NotReady. Nâng bằng `%USERPROFILE%\.wslconfig` (`[wsl2] memory=24GB`), rồi `wsl --shutdown` và mở lại Docker.
+- **Webhook inject có `failurePolicy: Ignore`**: pod tạo lúc operator đang chết vẫn chạy, chỉ là *không có agent*, im lặng. Kiểm tra bằng `kubectl get pod <pod> -o jsonpath='{.spec.initContainers[*].name}'`.
+- **Init container của agent chạy root theo mặc định**: nếu pod để `runAsNonRoot` mà không có UID thì kubelet từ chối (`CreateContainerConfigError`). Chart giờ khai báo `runAsUser` (10001 cho service, 101 cho nginx).
+- **JVM + agent khởi động chậm khi tranh CPU**: startup probe 3 phút không đủ, pod bị giết rồi boot lại từ đầu, thành vòng lặp. Đã nới trần lên 10 phút (pod khởi động nhanh vẫn ready ngay).
+- **Collector 0.160**: exporter đổi tên thành `otlp_grpc` / `otlp_http`.
 
 ## Chạy local (Phase 1)
 

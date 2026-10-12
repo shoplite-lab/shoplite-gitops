@@ -1,0 +1,108 @@
+# ShopLite overview dashboard. Grafana's sidecar loads every ConfigMap labelled
+# grafana_dashboard=1 (any namespace), so dashboards are code too.
+#
+# RED per service (Rate, Errors, Duration) from the Java agent's http.server.request.duration
+# histogram, JVM heap, Kafka consumer lag, the Tempo service graph and error logs from Loki.
+# Latency points carry exemplars: click one to open that exact request's trace in Tempo.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dashboard-shoplite
+  labels:
+    grafana_dashboard: "1"
+data:
+  shoplite.json: |
+    {
+      "uid": "shoplite-overview",
+      "title": "ShopLite overview",
+      "tags": ["shoplite"],
+      "timezone": "browser",
+      "refresh": "30s",
+      "time": { "from": "now-30m", "to": "now" },
+      "templating": {
+        "list": [
+          {
+            "name": "env",
+            "label": "Environment",
+            "type": "custom",
+            "query": "shop-dev,shop-prod",
+            "current": { "text": "shop-dev", "value": "shop-dev" }
+          }
+        ]
+      },
+      "panels": [
+        {
+          "id": 1, "type": "timeseries", "title": "Requests / s",
+          "gridPos": { "x": 0, "y": 0, "w": 8, "h": 8 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+          "targets": [{
+            "refId": "A",
+            "expr": "sum by (job) (rate(http_server_request_duration_seconds_count{k8s_namespace_name=\"$env\", http_route!~\"/actuator.*\"}[2m]))",
+            "legendFormat": "{{job}}"
+          }]
+        },
+        {
+          "id": 2, "type": "timeseries", "title": "5xx error ratio",
+          "gridPos": { "x": 8, "y": 0, "w": 8, "h": 8 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0 }, "overrides": [] },
+          "targets": [{
+            "refId": "A",
+            "expr": "sum by (job) (rate(http_server_request_duration_seconds_count{k8s_namespace_name=\"$env\", http_response_status_code=~\"5..\"}[5m])) / sum by (job) (rate(http_server_request_duration_seconds_count{k8s_namespace_name=\"$env\"}[5m]))",
+            "legendFormat": "{{job}}"
+          }]
+        },
+        {
+          "id": 3, "type": "timeseries", "title": "Latency p95 (dots = exemplars -> trace)",
+          "gridPos": { "x": 16, "y": 0, "w": 8, "h": 8 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+          "targets": [{
+            "refId": "A",
+            "expr": "histogram_quantile(0.95, sum by (job, le) (rate(http_server_request_duration_seconds_bucket{k8s_namespace_name=\"$env\", http_route!~\"/actuator.*\"}[5m])))",
+            "legendFormat": "{{job}}",
+            "exemplar": true
+          }]
+        },
+        {
+          "id": 4, "type": "timeseries", "title": "JVM heap used",
+          "gridPos": { "x": 0, "y": 8, "w": 8, "h": 8 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
+          "targets": [{
+            "refId": "A",
+            "expr": "sum by (job) (jvm_memory_used_bytes{k8s_namespace_name=\"$env\", jvm_memory_type=\"heap\"})",
+            "legendFormat": "{{job}}"
+          }]
+        },
+        {
+          "id": 5, "type": "timeseries", "title": "Kafka consumer lag (messages)",
+          "gridPos": { "x": 8, "y": 8, "w": 8, "h": 8 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": { "defaults": { "min": 0 }, "overrides": [] },
+          "targets": [{
+            "refId": "A",
+            "expr": "sum by (consumergroup, topic) (kafka_consumergroup_lag)",
+            "legendFormat": "{{consumergroup}} / {{topic}}"
+          }]
+        },
+        {
+          "id": 6, "type": "nodeGraph", "title": "Service graph (from traces)",
+          "gridPos": { "x": 16, "y": 8, "w": 8, "h": 8 },
+          "datasource": { "type": "tempo", "uid": "tempo" },
+          "targets": [{ "refId": "A", "queryType": "serviceMap" }]
+        },
+        {
+          "id": 7, "type": "logs", "title": "WARN / ERROR logs (expand a line -> View trace)",
+          "gridPos": { "x": 0, "y": 16, "w": 24, "h": 10 },
+          "datasource": { "type": "loki", "uid": "loki" },
+          "options": { "showTime": true, "wrapLogMessage": true, "sortOrder": "Descending" },
+          "targets": [{
+            "refId": "A",
+            "expr": "{namespace=\"$env\", level=~\"WARN|ERROR\"}"
+          }]
+        }
+      ],
+      "schemaVersion": 39
+    }
