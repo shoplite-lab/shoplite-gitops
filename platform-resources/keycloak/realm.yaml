@@ -2,7 +2,8 @@
 # Edit here, push, and Argo CD re-runs the import. Changes made in the admin console
 # are overwritten on the next run, like any other GitOps drift.
 #
-# $(env:NAME) values come from Secret keycloak/realm-secrets, never from git.
+# Values written as $ + (env:SOME_NAME) come from Secret keycloak/realm-secrets, never from
+# git. (Not spelled out here: keycloak-config-cli substitutes inside comments too.)
 #
 # One realm serves both shop-dev and shop-prod (one issuer, one Kong credential) to keep
 # the demo small; a real setup would give prod its own realm or its own Keycloak.
