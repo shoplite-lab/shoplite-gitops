@@ -1,0 +1,64 @@
+# One ApplicationSet -> one Argo CD Application per (component x environment):
+#   user-service-dev, user-service-prod, product-service-dev, ... valkey-prod  (12 apps)
+#
+# Each app = a chart from charts/ + values layered in order:
+#   apps/<svc>/values.yaml        shared by every environment
+#   apps/<svc>/values-<env>.yaml  per environment; CI writes image.tag in values-dev.yaml,
+#                                 the promote PR copies it to values-prod.yaml
+#
+# Adding a service = one line below + an apps/<svc>/ folder.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: shop
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - matrix:
+        generators:
+          - list:
+              elements:
+                - env: dev
+                - env: prod
+          - list:
+              elements:
+                - { component: valkey, chart: valkey }
+                - { component: user-service, chart: microservice }
+                - { component: product-service, chart: microservice }
+                - { component: order-service, chart: microservice }
+                - { component: notification-service, chart: microservice }
+                - { component: frontend, chart: microservice }
+  template:
+    metadata:
+      name: "{{ .component }}-{{ .env }}"
+      labels:
+        shoplite/env: "{{ .env }}"
+        shoplite/component: "{{ .component }}"
+    spec:
+      project: shop
+      source:
+        repoURL: https://github.com/shoplite-lab/shoplite-gitops.git
+        targetRevision: main
+        path: "charts/{{ .chart }}"
+        helm:
+          releaseName: "{{ .component }}"
+          ignoreMissingValueFiles: true # valkey has no per-env file
+          valueFiles:
+            - "../../apps/{{ .component }}/values.yaml"
+            - "../../apps/{{ .component }}/values-{{ .env }}.yaml"
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: "shop-{{ .env }}"
+      syncPolicy:
+        # Same policy for both envs. What protects prod is that values-prod.yaml only
+        # changes through a reviewed PR, not a different sync mode.
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+        retry:
+          limit: 5
+          backoff: { duration: 10s, factor: 2, maxDuration: 3m }

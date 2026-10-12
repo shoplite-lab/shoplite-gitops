@@ -1,0 +1,46 @@
+# Business apps. Last wave: operators, Kafka and Kong are Healthy by now.
+#
+# AppProject "shop" is the guard rail: apps in it may only come from this repo and only
+# land in shop-dev / shop-prod. A typo in a values file cannot touch kube-system or argocd.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: shop
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  description: ShopLite services (dev + prod)
+  sourceRepos:
+    - https://github.com/shoplite-lab/shoplite-gitops.git
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: shop-dev
+    - server: https://kubernetes.default.svc
+      namespace: shop-prod
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace # for CreateNamespace=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: shop
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/shoplite-lab/shoplite-gitops.git
+    targetRevision: main
+    path: apps
+    directory:
+      include: appset.yaml # apps/<svc>/ hold Helm values, not manifests
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

@@ -1,0 +1,53 @@
+# Defaults for a Spring Boot service. apps/<svc>/values*.yaml override what differs.
+
+image:
+  repository: ""
+  tag: "" # git SHA, written by CI
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+containerPort: 8080
+
+# Spring Boot Actuator probe groups (management.endpoint.health.probes.enabled=true).
+probes:
+  liveness: /actuator/health/liveness
+  readiness: /actuator/health/readiness
+  # startupProbe allows up to 5s x 36 = 3 min for the JVM to boot before liveness kicks in.
+  startupFailureThreshold: 36
+
+# Plain environment variables: NAME: value
+env: {}
+# From Secrets: NAME: { secret: <name>, key: <key> }
+secretEnv: {}
+
+resources:
+  requests: { cpu: 50m, memory: 384Mi }
+  limits: { memory: 768Mi } # no CPU limit: throttling hurts JVM startup more than it protects
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 70
+
+# Only meaningful with 2+ replicas: keeps one pod up during node drains.
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+
+ingress:
+  enabled: false
+  className: kong
+  host: ""
+  paths: [] # e.g. [/api/users]
+  annotations: {}
+
+# Database-per-service: a dedicated CloudNativePG cluster owned by this release.
+# The operator generates the credentials Secret <release>-db-app; the Deployment reads
+# DB_URL / DB_USER / DB_PASSWORD from it, so no password is ever written by a human.
+postgres:
+  enabled: false
+  instances: 1
+  database: ""
+  owner: ""
+  storage: 1Gi

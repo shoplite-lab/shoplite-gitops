@@ -2,3 +2,9 @@
 image:
   repository: ghcr.io/shoplite-lab/shoplite-order-service
   tag: 68973bc98d2a2b7f477f2678e36b4ec659689b17
+
+ingress:
+  host: dev.shop.localhost
+env:
+  # One Kafka cluster for both envs: topics are prefixed per environment.
+  SHOPLITE_KAFKA_ORDERCREATEDTOPIC: dev.order.created

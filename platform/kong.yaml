@@ -1,0 +1,39 @@
+# Kong Ingress Controller + Kong Gateway (DB-less). The controller turns Ingress /
+# KongPlugin resources from git into Kong config, so routing is GitOps too.
+# Proxy Service is type LoadBalancer -> k3s ServiceLB -> host ports 80/443 (bootstrap/k3d-cluster.yaml).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kong
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-10"
+spec:
+  project: default
+  source:
+    repoURL: https://charts.konghq.com
+    chart: ingress
+    targetRevision: 0.24.0
+    helm:
+      releaseName: kong
+      valuesObject:
+        controller:
+          ingressController:
+            ingressClass: kong
+        gateway:
+          env:
+            proxy_access_log: /dev/stdout
+            proxy_error_log: /dev/stderr
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { memory: 512Mi }
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kong
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

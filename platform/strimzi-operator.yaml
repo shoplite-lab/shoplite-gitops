@@ -1,0 +1,31 @@
+# Strimzi operator: runs Kafka declared as `Kafka` / `KafkaNodePool` / `KafkaTopic` resources.
+# Watches only its own namespace (kafka), where platform-resources/kafka lives.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: strimzi-operator
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-10"
+spec:
+  project: default
+  source:
+    repoURL: https://strimzi.io/charts/
+    chart: strimzi-kafka-operator
+    targetRevision: 1.2.0
+    helm:
+      releaseName: strimzi
+      valuesObject:
+        resources:
+          requests: { cpu: 50m, memory: 256Mi }
+          limits: { memory: 384Mi }
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kafka
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

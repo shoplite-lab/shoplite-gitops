@@ -1,0 +1,25 @@
+# Local Kubernetes for ShopLite: k3s nodes running as Docker containers.
+#   k3d cluster create --config bootstrap/k3d-cluster.yaml
+#
+# Host :80/:443 -> k3d load balancer -> Kong proxy (Service type LoadBalancer, served by k3s ServiceLB).
+# *.localhost resolves to 127.0.0.1, so http://argocd.localhost and http://shop.localhost just work.
+apiVersion: k3d.io/v1alpha5
+kind: Simple
+metadata:
+  name: shoplite
+servers: 1
+agents: 2 # 3 nodes: enough to see pod spreading, PodDisruptionBudgets and node drains
+ports:
+  - port: 80:80
+    nodeFilters: [loadbalancer]
+  - port: 443:443
+    nodeFilters: [loadbalancer]
+options:
+  k3s:
+    extraArgs:
+      # Kong is our ingress; k3s' bundled Traefik would fight it for ports 80/443.
+      - arg: --disable=traefik
+        nodeFilters: ["server:*"]
+  kubeconfig:
+    updateDefaultKubeconfig: true
+    switchCurrentContext: true

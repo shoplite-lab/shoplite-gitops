@@ -2,3 +2,9 @@
 image:
   repository: ghcr.io/shoplite-lab/shoplite-notification-service
   tag: main
+
+ingress:
+  host: shop.localhost
+env:
+  SHOPLITE_KAFKA_ORDERCREATEDTOPIC: prod.order.created
+  SPRING_KAFKA_CONSUMER_GROUPID: notification-service-prod # consumer groups are cluster-wide too

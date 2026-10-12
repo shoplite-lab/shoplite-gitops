@@ -1,0 +1,25 @@
+# Topics as code. order-service also declares its topic (NewTopic bean), which is a no-op
+# when the topic already exists; git stays the source of truth for partitions/retention.
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: dev.order.created
+  labels:
+    strimzi.io/cluster: shoplite
+spec:
+  partitions: 3
+  replicas: 1
+  config:
+    retention.ms: 604800000 # 7 days
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: prod.order.created
+  labels:
+    strimzi.io/cluster: shoplite
+spec:
+  partitions: 3
+  replicas: 1
+  config:
+    retention.ms: 604800000

@@ -1,0 +1,10 @@
+# Shared by dev and prod. Chart defaults: charts/microservice/values.yaml
+postgres:
+  enabled: true
+  database: products
+  owner: products_app
+env:
+  REDIS_HOST: valkey # charts/valkey, same namespace
+ingress:
+  enabled: true
+  paths: [/api/products]

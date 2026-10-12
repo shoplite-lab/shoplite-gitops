@@ -1,0 +1,7 @@
+apiVersion: v2
+name: microservice
+description: >-
+  One chart for every ShopLite workload (4 Spring Boot services + the React frontend).
+  Services differ only by values (apps/<svc>/values*.yaml), never by templates.
+type: application
+version: 0.1.0

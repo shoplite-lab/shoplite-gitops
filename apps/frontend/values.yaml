@@ -1,0 +1,16 @@
+# Shared by dev and prod. Chart defaults: charts/microservice/values.yaml
+# nginx serving the React build; config is injected at start-up into /env.js.
+probes:
+  liveness: /healthz
+  readiness: /healthz
+  startupFailureThreshold: 6
+resources:
+  requests: { cpu: 10m, memory: 16Mi }
+  limits: { memory: 64Mi }
+env:
+  OIDC_AUTHORITY: http://auth.localhost/realms/shoplite # Keycloak arrives in Phase 4
+  OIDC_CLIENT_ID: shop-frontend
+  API_BASE_URL: "" # same origin: Kong serves the app and /api/* on one host
+ingress:
+  enabled: true
+  paths: [/]

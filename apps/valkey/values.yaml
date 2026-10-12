@@ -1,0 +1,3 @@
+# Cache for product-service. One instance per environment namespace, so dev and prod
+# never share keys. Reached as valkey:6379 from inside shop-dev / shop-prod.
+maxmemory: 64mb

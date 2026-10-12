@@ -1,0 +1,46 @@
+# Helm values for Argo CD (chart argo/argo-cd).
+# Used twice: once by bootstrap/up.sh (helm install, chicken-and-egg), then forever by
+# platform/argocd.yaml, where Argo CD manages its own upgrades from git.
+global:
+  domain: argocd.localhost
+
+configs:
+  params:
+    # TLS ends at Kong (plain HTTP locally); argocd-server must not redirect to https itself.
+    server.insecure: true
+  cm:
+    # Phase 5 replaces this with OIDC login through Keycloak.
+    admin.enabled: true
+    # Since Argo CD 1.8 a parent app does not wait for child Applications to be healthy.
+    # Restoring this health check makes sync waves in platform/ meaningful:
+    # operators (wave -10) are Healthy before the resources that need their CRDs (wave 0).
+    resource.customizations.health.argoproj.io_Application: |
+      hs = {}
+      hs.status = "Progressing"
+      hs.message = ""
+      if obj.status ~= nil and obj.status.health ~= nil then
+        hs.status = obj.status.health.status
+        if obj.status.health.message ~= nil then
+          hs.message = obj.status.health.message
+        end
+      end
+      return hs
+
+server:
+  ingress:
+    enabled: true
+    ingressClassName: kong
+
+# Not needed: SSO goes straight to Keycloak (Phase 5), notifications are out of scope.
+dex:
+  enabled: false
+notifications:
+  enabled: false
+
+# Small footprint for a laptop.
+controller:
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+repoServer:
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }

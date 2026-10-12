@@ -7,7 +7,59 @@ Nguồn sự thật (single source of truth) cho mọi thứ chạy trên Kubern
 | Thư mục | Phase | Trạng thái |
 |---|---|---|
 | `local/` | 1 | ✅ docker-compose chạy toàn bộ stack trên máy |
-| `bootstrap/`, `platform/`, `platform-resources/`, `charts/`, `apps/` | 3–6 | ⏳ chưa làm |
+| `bootstrap/`, `platform/`, `platform-resources/`, `charts/`, `apps/` | 3 | ✅ k3d + Argo CD + Kong + CNPG + Strimzi + 12 app (dev/prod) |
+| Keycloak + Kong JWT trên K8s | 4 | ⏳ |
+| Observability trên K8s | 5 | ⏳ |
+| GKE | 6 | ⏳ |
+
+## Kubernetes local (Phase 3)
+
+Yêu cầu: Docker Desktop (≥ 10 GB RAM), `k3d`, `kubectl`, `helm`. Port 80/443 trên máy phải trống.
+
+```bash
+bash bootstrap/up.sh            # k3d cluster -> helm install Argo CD -> apply root app
+kubectl get applications -n argocd -w
+k3d cluster stop shoplite       # tạm tắt, giữ dữ liệu  (start lại: k3d cluster start shoplite)
+k3d cluster delete shoplite     # xoá hẳn
+```
+
+| URL | Gì |
+|---|---|
+| http://argocd.localhost | Argo CD UI, user `admin`, password: `kubectl get secret -n argocd argocd-initial-admin-secret -o jsonpath='{.data.password}' \| base64 -d` |
+| http://dev.shop.localhost | Môi trường dev (namespace `shop-dev`) |
+| http://shop.localhost | Môi trường prod (namespace `shop-prod`) |
+
+Login / đặt hàng cần Keycloak → Phase 4. Phase 3 kiểm tra được: `curl http://dev.shop.localhost/api/products`.
+
+### Cây Application
+
+```
+root (bootstrap/root-app.yaml — apply tay đúng 1 lần)
+└── platform/*.yaml
+    ├── argocd            wave -20  Argo CD tự quản lý chính nó (nâng version = sửa git)
+    ├── cnpg-operator     wave -10  operator PostgreSQL
+    ├── strimzi-operator  wave -10  operator Kafka
+    ├── kong              wave -10  Kong Ingress Controller, LoadBalancer -> host :80/:443
+    ├── kafka             wave   0  platform-resources/kafka: Kafka KRaft 1 node + KafkaTopic
+    └── shop              wave  10  AppProject "shop" + apps/appset.yaml
+        └── ApplicationSet "shop" = {dev, prod} × {valkey, user, product, order, notification, frontend}
+            └── user-service-dev, user-service-prod, ... (12 Application)
+```
+
+Sync wave chỉ có tác dụng giữa các Application con nhờ health check `argoproj.io_Application` khai báo trong `bootstrap/argocd-values.yaml`.
+
+### Quyết định thiết kế
+
+| Chủ đề | Chọn | Vì sao |
+|---|---|---|
+| Chart | 1 chart `charts/microservice` cho cả 5 workload | Service khác nhau chỉ ở values. Sửa probe/securityContext 1 chỗ |
+| Values | `apps/<svc>/values.yaml` (chung) + `values-<env>.yaml` | CI chỉ sửa `image.tag` trong `values-dev.yaml`; prod chỉ đổi qua PR promote |
+| PostgreSQL | 1 CNPG `Cluster` riêng cho mỗi service × env | Database-per-service đúng nghĩa; operator tự sinh Secret `<svc>-db-app` → không có password nào do người viết |
+| Kafka | 1 cluster chung, topic `dev.*` / `prod.*`, consumer group theo env | Kafka tốn RAM nhất; tách bằng tên topic là cách multi-tenant phổ biến |
+| Valkey | 1 instance mỗi namespace, chart tự viết, không persistence | Cache mất thì chỉ miss; tránh Bitnami (đã ngừng image miễn phí) |
+| Bảo mật pod | non-root, read-only root FS, drop ALL capabilities, seccomp | Đạt chuẩn Pod Security "restricted" |
+| AppProject `shop` | chỉ deploy từ repo này vào `shop-dev` / `shop-prod` | App lỗi cấu hình không thể ghi vào namespace khác |
+| TLS | chưa (HTTP trên `*.localhost`) | cert-manager + Let's Encrypt cần domain thật → Phase 6 |
 
 ## Chạy local (Phase 1)
 

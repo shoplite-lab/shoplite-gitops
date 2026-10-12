@@ -1,0 +1,13 @@
+# Shared by dev and prod. Chart defaults: charts/microservice/values.yaml
+postgres:
+  enabled: true
+  database: orders
+  owner: orders_app
+env:
+  KAFKA_BOOTSTRAP_SERVERS: shoplite-kafka-bootstrap.kafka:9092
+  KAFKA_TOPIC_REPLICAS: "1"
+  # East-west call: straight to the Service in the same namespace, not through Kong.
+  PRODUCT_SERVICE_URL: http://product-service:8080
+ingress:
+  enabled: true
+  paths: [/api/orders]

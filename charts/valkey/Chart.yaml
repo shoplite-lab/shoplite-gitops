@@ -1,0 +1,8 @@
+apiVersion: v2
+name: valkey
+description: >-
+  Minimal Valkey (open-source Redis fork) used as a pure cache: no persistence, LRU eviction.
+  Written in-house instead of the Bitnami chart (Bitnami stopped publishing free images in 2025).
+type: application
+version: 0.1.0
+appVersion: "8.1"

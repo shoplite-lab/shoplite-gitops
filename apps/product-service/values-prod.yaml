@@ -2,3 +2,10 @@
 image:
   repository: ghcr.io/shoplite-lab/shoplite-product-service
   tag: main
+
+ingress:
+  host: shop.localhost
+# Prod runs 2 replicas spread over nodes; the PDB keeps 1 up while a node is drained.
+replicaCount: 2
+podDisruptionBudget:
+  enabled: true

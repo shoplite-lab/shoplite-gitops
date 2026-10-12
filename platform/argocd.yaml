@@ -1,0 +1,32 @@
+# Argo CD manages itself: bump targetRevision here to upgrade Argo CD.
+# Values live in bootstrap/argocd-values.yaml, shared with the very first helm install.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argocd
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-20"
+spec:
+  project: default
+  sources:
+    - repoURL: https://argoproj.github.io/argo-helm
+      chart: argo-cd
+      targetRevision: 10.10.2 # keep in sync with bootstrap/up.sh
+      helm:
+        releaseName: argocd
+        valueFiles:
+          - $values/bootstrap/argocd-values.yaml
+    - repoURL: https://github.com/shoplite-lab/shoplite-gitops.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      # Never let a bad commit prune Argo CD's own resources.
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true # CRDs are too big for client-side apply's last-applied annotation

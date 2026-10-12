@@ -1,0 +1,28 @@
+{{- if .Values.postgres.enabled }}
+# CloudNativePG creates: StatefulSet-like pods, Services <release>-db-rw / -ro / -r,
+# and the Secret <release>-db-app (username, password, jdbc-uri, ...) used by the Deployment.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ .Release.Name }}-db
+  labels:
+    {{- include "microservice.labels" . | nindent 4 }}
+  annotations:
+    # Database before the app; the app would only crash-loop until the DB is up.
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  instances: {{ .Values.postgres.instances }}
+  storage:
+    size: {{ .Values.postgres.storage }}
+  bootstrap:
+    initdb:
+      database: {{ required "postgres.database is required" .Values.postgres.database }}
+      owner: {{ required "postgres.owner is required" .Values.postgres.owner }}
+  postgresql:
+    parameters:
+      shared_buffers: 64MB
+      max_connections: "50"
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { memory: 256Mi }
+{{- end }}

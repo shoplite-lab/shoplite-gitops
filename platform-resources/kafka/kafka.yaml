@@ -1,0 +1,52 @@
+# One small Kafka (KRaft, no ZooKeeper) shared by shop-dev and shop-prod.
+# Environments are separated by topic prefix (dev.* / prod.*) and consumer group, not by cluster.
+# Bootstrap address for clients: shoplite-kafka-bootstrap.kafka:9092
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaNodePool
+metadata:
+  name: dual-role
+  labels:
+    strimzi.io/cluster: shoplite
+spec:
+  replicas: 1
+  roles: [controller, broker]
+  storage:
+    type: jbod
+    volumes:
+      - id: 0
+        type: persistent-claim
+        size: 5Gi
+        kraftMetadata: shared
+  resources:
+    requests: { cpu: 100m, memory: 768Mi }
+    limits: { memory: 1Gi }
+  jvmOptions:
+    -Xms: 512m
+    -Xmx: 512m
+---
+apiVersion: kafka.strimzi.io/v1
+kind: Kafka
+metadata:
+  name: shoplite
+spec:
+  kafka:
+    version: 4.3.1
+    metadataVersion: 4.3-IV0
+    listeners:
+      - name: plain
+        port: 9092
+        type: internal
+        tls: false
+    config:
+      # Single broker: every replication factor must be 1.
+      offsets.topic.replication.factor: 1
+      transaction.state.log.replication.factor: 1
+      transaction.state.log.min.isr: 1
+      default.replication.factor: 1
+      min.insync.replicas: 1
+  entityOperator:
+    # Topic Operator turns KafkaTopic resources (topics.yaml) into real topics.
+    topicOperator:
+      resources:
+        requests: { cpu: 20m, memory: 192Mi }
+        limits: { memory: 256Mi }

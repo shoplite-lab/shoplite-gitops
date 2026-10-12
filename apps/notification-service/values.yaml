@@ -1,0 +1,10 @@
+# Shared by dev and prod. Chart defaults: charts/microservice/values.yaml
+postgres:
+  enabled: true
+  database: notifications
+  owner: notifications_app
+env:
+  KAFKA_BOOTSTRAP_SERVERS: shoplite-kafka-bootstrap.kafka:9092
+ingress:
+  enabled: true
+  paths: [/api/notifications]
