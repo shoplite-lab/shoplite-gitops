@@ -10,4 +10,4 @@ ingress:
   routes:
     - name: api
       paths: [/api/users]
-      plugins: [jwt-keycloak]
+      plugins: [cors, jwt-keycloak]

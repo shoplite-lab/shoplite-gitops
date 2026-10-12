@@ -19,4 +19,4 @@ ingress:
   routes:
     - name: api
       paths: [/api/orders]
-      plugins: [jwt-keycloak, rate-limit-orders]
+      plugins: [cors, jwt-keycloak, rate-limit-orders]

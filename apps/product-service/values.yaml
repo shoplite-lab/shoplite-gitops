@@ -15,7 +15,8 @@ ingress:
     - name: read
       paths: [/api/products]
       methods: [GET, HEAD, OPTIONS]
+      plugins: [cors]
     - name: write
       paths: [/api/products]
       methods: [POST, PUT, PATCH, DELETE]
-      plugins: [jwt-keycloak]
+      plugins: [cors, jwt-keycloak]

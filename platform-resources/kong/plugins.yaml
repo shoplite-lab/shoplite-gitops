@@ -16,16 +16,16 @@ config:
   generator: uuid
   echo_downstream: true
 ---
-# Production traffic is same-origin (Kong serves the app and /api/* on one host), so
-# CORS only matters for `npm run dev` (Vite on :5173) talking to the cluster's API.
+# Opt-in on /api/* routes only. Production traffic is same-origin (Kong serves the app
+# and /api/* on one host); CORS only matters for `npm run dev` (Vite on :5173) calling the
+# cluster's API. Not global: on auth.localhost it would overwrite Keycloak's own CORS
+# headers (built from each client's webOrigins) and break the browser login.
 apiVersion: configuration.konghq.com/v1
 kind: KongClusterPlugin
 metadata:
   name: cors
   annotations:
     kubernetes.io/ingress.class: kong
-  labels:
-    global: "true"
 plugin: cors
 config:
   origins: ["http://localhost:5173"]

@@ -12,4 +12,4 @@ ingress:
   routes:
     - name: api
       paths: [/api/notifications]
-      plugins: [jwt-keycloak]
+      plugins: [cors, jwt-keycloak]
