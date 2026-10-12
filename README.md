@@ -36,10 +36,10 @@ Login / đặt hàng cần Keycloak → Phase 4. Phase 3 kiểm tra được: `c
 ```
 root (bootstrap/root-app.yaml — apply tay đúng 1 lần)
 └── platform/*.yaml
-    ├── argocd            wave -20  Argo CD tự quản lý chính nó (nâng version = sửa git)
+    ├── kong              wave -30  Kong Ingress Controller, LoadBalancer -> host :80/:443
+    ├── argocd            wave -20  Argo CD tự quản lý chính nó (Ingress của nó cần Kong có trước)
     ├── cnpg-operator     wave -10  operator PostgreSQL
     ├── strimzi-operator  wave -10  operator Kafka
-    ├── kong              wave -10  Kong Ingress Controller, LoadBalancer -> host :80/:443
     ├── kafka             wave   0  platform-resources/kafka: Kafka KRaft 1 node + KafkaTopic
     └── shop              wave  10  AppProject "shop" + apps/appset.yaml
         └── ApplicationSet "shop" = {dev, prod} × {valkey, user, product, order, notification, frontend}
