@@ -5,3 +5,11 @@ image:
 
 ingress:
   host: dev.shop.localhost
+
+# Phase 7 load test (scenarios/load-hpa.sh): above 70% of the 50m CPU request, a second
+# pod starts. Kept to 2: every extra JVM costs the laptop ~400MB and a CPU-heavy boot.
+autoscaling:
+  enabled: true
+  minReplicas: 1
+  maxReplicas: 2
+  targetCPUUtilizationPercentage: 70

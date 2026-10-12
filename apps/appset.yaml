@@ -15,6 +15,11 @@ metadata:
 spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]
+  # Lets an operator switch auto-sync off on one app (incident, chaos drill: scenarios/)
+  # without the ApplicationSet putting it straight back. Trade-off: a syncPolicy change in
+  # the template below only reaches apps created after it.
+  ignoreApplicationDifferences:
+    - jsonPointers: [/spec/syncPolicy]
   generators:
     - matrix:
         generators:

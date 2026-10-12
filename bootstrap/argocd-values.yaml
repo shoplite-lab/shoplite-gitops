@@ -38,6 +38,51 @@ configs:
         end
       end
       return hs
+    # Built-in CNPG check (argo-cd resource_customizations/postgresql.cnpg.io/Cluster) with one
+    # change: a hibernated cluster (apps/appset.yaml `paused`) is Healthy, not Suspended.
+    # Suspended never turns Healthy, so a sync waiting on it would hang forever, and a
+    # paused environment is a normal state, not something to look at.
+    resource.customizations.health.postgresql.cnpg.io_Cluster: |
+      local hs = {}
+      local phases = {
+        ["Cluster in healthy state"] = "Healthy",
+        ["Setting up primary"] = "Progressing",
+        ["Creating a new replica"] = "Progressing",
+        ["Upgrading cluster"] = "Progressing",
+        ["Waiting for the instances to become active"] = "Progressing",
+        ["Promoting to primary cluster"] = "Progressing",
+        ["Switchover in progress"] = "Degraded",
+        ["Failing over"] = "Degraded",
+        ["Upgrading Postgres major version"] = "Degraded",
+        ["Cluster upgrade delayed"] = "Degraded",
+        ["Waiting for user action"] = "Degraded",
+        ["Primary instance is being restarted in-place"] = "Degraded",
+        ["Primary instance is being restarted without a switchover"] = "Degraded",
+        ["Online upgrade in progress"] = "Degraded",
+        ["Applying configuration"] = "Degraded",
+        ["Unable to create required cluster objects"] = "Suspended",
+        ["Cluster is unrecoverable and needs manual intervention"] = "Suspended",
+      }
+      if obj.status == nil or obj.status.conditions == nil then
+        hs.status = "Progressing"
+        return hs
+      end
+      for _, c in ipairs(obj.status.conditions) do
+        if c.type == "cnpg.io/hibernation" and c.status == "True" then
+          hs.status = "Healthy"
+          hs.message = "Hibernated: " .. (c.message or "")
+          return hs
+        end
+      end
+      local annotations = obj.metadata.annotations or {}
+      if annotations["cnpg.io/hibernation"] == "on" then
+        hs.status = "Progressing"
+        hs.message = "Hibernating"
+        return hs
+      end
+      hs.status = phases[obj.status.phase] or "Unknown"
+      hs.message = obj.status.phaseReason
+      return hs
 
   # Keycloak groups (token claim `groups`) -> Argo CD roles. No group = logged in, sees nothing.
   # Object = <project>/<app>. A deny line beats any allow, including role:admin.
