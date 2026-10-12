@@ -25,12 +25,14 @@ roles:
       description: Can manage products
     - name: stock-writer
       description: "Service role: reserve stock (order-service service account)"
-
-defaultRole:
-  name: default-roles-shoplite
-  composite: true
-  composites:
-    realm: [offline_access, uma_authorization, customer]
+    # Roles every user gets, self-registered ones included. keycloak-config-cli updates
+    # the default role only when it is declared here (the realm's defaultRole field is ignored).
+    - name: default-roles-shoplite
+      composite: true
+      composites:
+        realm: [offline_access, uma_authorization, customer]
+        client:
+          account: [view-profile, manage-account]
 
 groups:
   - name: devops # -> Argo CD admin + Grafana Admin (Phase 5)
