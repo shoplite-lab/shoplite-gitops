@@ -11,6 +11,7 @@ Nguồn sự thật (single source of truth) cho mọi thứ chạy trên Kubern
 | Keycloak Operator + realm-as-code + Kong JWT trên K8s | 4 | ✅ |
 | Observability (OTel, Prometheus, Loki, Tempo, Grafana) + SSO Grafana/Argo CD | 5 | ✅ |
 | GKE | 6 | ⏳ |
+| `scenarios/`: kịch bản vận hành (self-healing, HPA, rate limit, circuit breaker, Kafka lag, rollback) | 7 | ✅ |
 
 ## Kubernetes local (Phase 3)
 
@@ -176,6 +177,37 @@ Dashboard: **ShopLite overview** (RED theo service, JVM heap, Kafka lag, service
 - **Init container của agent chạy root theo mặc định**: nếu pod để `runAsNonRoot` mà không có UID thì kubelet từ chối (`CreateContainerConfigError`). Chart giờ khai báo `runAsUser` (10001 cho service, 101 cho nginx).
 - **JVM + agent khởi động chậm khi tranh CPU**: startup probe 3 phút không đủ, pod bị giết rồi boot lại từ đầu, thành vòng lặp. Đã nới trần lên 10 phút (pod khởi động nhanh vẫn ready ngay).
 - **Collector 0.160**: exporter đổi tên thành `otlp_grpc` / `otlp_http`.
+- **CPU, không phải RAM, là giới hạn thật**: laptop 8 luồng chạy ~15 JVM. Khi nhiều JVM khởi động cùng lúc, health check mặc định (timeout 1s) giết pod còn sống nhưng chậm, pod boot lại càng tốn CPU: load average lên 180, cả cluster restart dây chuyền. Chart giờ dùng probe timeout 5s, liveness chịu 1 phút, và `JAVA_TOOL_OPTIONS` cho máy yếu (`ActiveProcessorCount=2`, chỉ JIT C1, SerialGC). Prod tạm tắt bằng `paused` (bên dưới).
+
+## Kịch bản vận hành (Phase 7)
+
+Chỉ chạy trên **dev** (`dev.shop.localhost`). Mỗi kịch bản là 1 script trong `scenarios/`, chạy bằng Git Bash từ thư mục repo:
+
+```bash
+bash scenarios/<script>.sh <lệnh>
+# Từ PowerShell / ô chat Claude Code:
+#   & "C:\Program Files\Git\bin\bash.exe" C:/Users/Dell/Documents/shoplite/shoplite-gitops/scenarios/<script>.sh <lệnh>
+```
+
+| Kịch bản | Lệnh | Bài học | Xem ở đâu |
+|---|---|---|---|
+| Kill pod | `self-healing.sh kill` | ReplicaSet tạo lại pod ngay. 1 replica = có downtime lúc pod mới boot | Argo CD (cây resource của `order-service-dev`) |
+| Drift | `self-healing.sh drift` | `kubectl scale` tay → Argo CD thấy OutOfSync → self-heal về đúng git. Sửa thật phải sửa trong git | Argo CD: app chuyển OutOfSync rồi Synced |
+| Tải cao + HPA | `load-hpa.sh` | k6 bắn `GET /api/products` 3 phút → CPU vượt 70% request → HPA thêm pod thứ 2; hết tải 5 phút sau mới bớt | Grafana *ShopLite overview* (req/s, p95), Argo CD (pod thứ 2) |
+| Rate limit | `rate-limit.sh` | Kong chặn `/api/orders` quá 20 req/phút/IP bằng 429, request không tới service | Output script, header `RateLimit-*` |
+| Circuit breaker | `circuit-breaker.sh break` → `status` → `restore` | product-service chết → order-service thử vài lần rồi **mở mạch**, trả 503 ngay không gọi nữa; bật lại → HALF_OPEN → CLOSED | Tempo: trace lỗi lúc đầu có span gọi product-service, sau đó không còn |
+| Kafka lag | `kafka-lag.sh break 5` → `status` → `restore` | notification-service chết nhưng **đặt hàng vẫn chạy** (bất đồng bộ); event nằm chờ trong Kafka, bật lại thì xử lý bù hết | Kafka UI › Consumers, Grafana panel *Kafka consumer lag*; `break 60` để thấy alert `KafkaConsumerLagHigh` |
+
+`kafka-lag.sh break` tắt **auto-sync** của `notification-service-dev` trước khi scale về 0, nếu không Argo CD bật lại ngay. Đó là việc người ta làm thật khi xử lý sự cố: tạm ngắt GitOps cho đúng 1 app (ApplicationSet có `ignoreApplicationDifferences` cho `syncPolicy` để không ghi đè), xong việc bật lại và Argo CD tự đưa mọi thứ về như git. `circuit-breaker.sh` không cần bước này vì số replica của product-service do HPA quản, không nằm trong git.
+
+### Promote và rollback (bằng git, không có script)
+
+1. **Promote dev → prod**: GitHub › `shoplite-gitops` › Actions › **promote** › Run workflow. Workflow chép `image.tag` từ `values-dev.yaml` sang `values-prod.yaml` và mở PR; merge PR = duyệt. Argo CD không cho `devops` bấm Sync tay trên prod, PR là con đường duy nhất.
+2. **Rollback**: tìm commit deploy (`git log --oneline -- apps/<svc>/values-dev.yaml`, commit dạng `chore(<svc>): deploy <sha> to dev`), `git revert <commit>` rồi push. Argo CD deploy lại image cũ. Không rollback trong UI Argo CD: git sẽ ghi đè lại ở lần sync sau.
+
+### Tạm tắt cả một môi trường
+
+`apps/appset.yaml`: `{ env: prod, paused: "true" }` → Deployment và Valkey về 0, Postgres **hibernate** (CNPG tắt pod, giữ PVC và data). Đổi về `"false"`, push, đợi vài phút là chạy lại như cũ. Thứ tự tắt: app trước (wave 0), DB sau (wave 1), vì Postgres chỉ dừng khi hết kết nối. Argo CD được dạy coi DB đang hibernate là Healthy (health check tuỳ chỉnh trong `bootstrap/argocd-values.yaml`), nếu không lần sync sẽ chờ mãi.
 
 ## Chạy local (Phase 1)
 
