@@ -18,6 +18,19 @@ probes:
   # OTel agent) starting together share 8 cores; 3 min was not enough and every probe kill
   # restarted the boot from scratch.
   startupFailureThreshold: 120
+  # Kubernetes defaults (1s timeout, 3 misses) kill a healthy but CPU-starved JVM: a slow
+  # /actuator/health is not a dead app. A liveness kill restarts the boot, which costs more
+  # CPU and slows everyone else down -> restart storm across the cluster.
+  timeoutSeconds: 5
+  livenessFailureThreshold: 6 # 1 min unanswered before a restart
+
+# JAVA_TOOL_OPTIONS, tuned for ~15 JVMs sharing a laptop's 8 CPUs (no CPU limits, so each
+# JVM would otherwise size itself for all 8):
+#   ActiveProcessorCount=2  fewer GC / JIT / ForkJoin threads per JVM
+#   TieredStopAtLevel=1     C1 JIT only: far less CPU while starting, lower peak speed
+#   UseSerialGC             no parallel GC threads; fine for heaps of a few hundred MB
+# On real nodes with CPU requests sized properly, drop the last two.
+jvmOptions: -XX:ActiveProcessorCount=2 -XX:TieredStopAtLevel=1 -XX:+UseSerialGC
 
 # Plain environment variables: NAME: value
 env: {}

@@ -81,6 +81,11 @@ spec:
             - name: LOGGING_STRUCTURED_FORMAT_CONSOLE
               value: logstash
             {{- end }}
+            {{- with .Values.jvmOptions }}
+            # Read by the JVM before main(); the OTel Operator appends its -javaagent to it.
+            - name: JAVA_TOOL_OPTIONS
+              value: {{ . | quote }}
+            {{- end }}
             {{- range $name, $ref := .Values.secretEnv }}
             - name: {{ $name }}
               valueFrom:
@@ -93,14 +98,17 @@ spec:
           startupProbe:
             httpGet: { path: {{ .Values.probes.liveness }}, port: http }
             periodSeconds: 5
+            timeoutSeconds: {{ .Values.probes.timeoutSeconds }}
             failureThreshold: {{ .Values.probes.startupFailureThreshold }}
           livenessProbe:
             httpGet: { path: {{ .Values.probes.liveness }}, port: http }
             periodSeconds: 10
-            failureThreshold: 3
+            timeoutSeconds: {{ .Values.probes.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.livenessFailureThreshold }}
           readinessProbe:
             httpGet: { path: {{ .Values.probes.readiness }}, port: http }
             periodSeconds: 5
+            timeoutSeconds: {{ .Values.probes.timeoutSeconds }}
             failureThreshold: 3
           lifecycle:
             # Give Kong time to drop this pod from its upstream before the app stops
