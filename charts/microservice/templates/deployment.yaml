@@ -16,6 +16,11 @@ spec:
     metadata:
       labels:
         {{- include "microservice.selectorLabels" . | nindent 8 }}
+        {{- if .Values.observability.enabled }}
+        # Routes the pod through the OTel Operator webhook (failurePolicy Fail, see
+        # platform/opentelemetry-operator.yaml): no agent, no pod.
+        shoplite/otel-agent: "true"
+        {{- end }}
       {{- if .Values.observability.enabled }}
       annotations:
         # The OTel Operator adds the Java agent to the pod when it is created.

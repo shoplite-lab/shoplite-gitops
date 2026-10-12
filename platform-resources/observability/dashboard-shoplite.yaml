@@ -46,7 +46,7 @@ data:
           "id": 2, "type": "timeseries", "title": "5xx error ratio",
           "gridPos": { "x": 8, "y": 0, "w": 8, "h": 8 },
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0 }, "overrides": [] },
+          "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 }, "overrides": [] },
           "targets": [{
             "refId": "A",
             "expr": "sum by (job) (rate(http_server_request_duration_seconds_count{k8s_namespace_name=\"$env\", http_response_status_code=~\"5..\"}[5m])) / sum by (job) (rate(http_server_request_duration_seconds_count{k8s_namespace_name=\"$env\"}[5m]))",

@@ -171,7 +171,7 @@ Dashboard: **ShopLite overview** (RED theo service, JVM heap, Kafka lag, service
 ### Bài học khi triển khai
 
 - **RAM**: stack đầy đủ (16 JVM lúc rollout + LGTM) cần Docker VM khoảng 20GB. Với 16GB, swap đầy, API server timeout, node NotReady. Nâng bằng `%USERPROFILE%\.wslconfig` (`[wsl2] memory=24GB`), rồi `wsl --shutdown` và mở lại Docker.
-- **Webhook inject có `failurePolicy: Ignore`**: pod tạo lúc operator đang chết vẫn chạy, chỉ là *không có agent*, im lặng. Kiểm tra bằng `kubectl get pod <pod> -o jsonpath='{.spec.initContainers[*].name}'`.
+- **Webhook inject mặc định `failurePolicy: Ignore`**: pod tạo lúc operator chưa chạy (vd. ngay sau khi bật lại cluster) vẫn lên, chỉ là *không có agent*, im lặng. Đã đổi: webhook chỉ bắt pod có label `shoplite/otel-agent=true` và `failurePolicy: Fail`, nên pod chờ tới khi operator sẵn sàng. Kiểm tra: `kubectl get pod <pod> -o jsonpath='{.spec.initContainers[*].name}'`.
 - **Init container của agent chạy root theo mặc định**: nếu pod để `runAsNonRoot` mà không có UID thì kubelet từ chối (`CreateContainerConfigError`). Chart giờ khai báo `runAsUser` (10001 cho service, 101 cho nginx).
 - **JVM + agent khởi động chậm khi tranh CPU**: startup probe 3 phút không đủ, pod bị giết rồi boot lại từ đầu, thành vòng lặp. Đã nới trần lên 10 phút (pod khởi động nhanh vẫn ready ngay).
 - **Collector 0.160**: exporter đổi tên thành `otlp_grpc` / `otlp_http`.

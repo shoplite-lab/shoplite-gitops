@@ -28,6 +28,16 @@ spec:
           # Self-generated certs change on every render -> permanent OutOfSync in Argo CD.
           autoGenerateCert:
             enabled: false
+          # The pod webhook only sees pods that asked for the agent (label set by
+          # charts/microservice), and fails closed: while the operator is down (e.g. right
+          # after a cluster restart) their creation is refused and the ReplicaSet retries,
+          # instead of the default Ignore silently starting them without the agent.
+          # Scoping by label keeps every other pod, the operator's own included, unaffected.
+          pods:
+            failurePolicy: Fail
+            objectSelector:
+              matchLabels:
+                shoplite/otel-agent: "true"
   destination:
     server: https://kubernetes.default.svc
     namespace: opentelemetry-operator
