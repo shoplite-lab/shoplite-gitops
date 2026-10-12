@@ -10,6 +10,8 @@ metadata:
   annotations:
     # Database before the app; the app would only crash-loop until the DB is up.
     argocd.argoproj.io/sync-wave: "-1"
+    # paused: CNPG stops the Postgres pods but keeps the PVC, so data survives.
+    cnpg.io/hibernation: {{ if .Values.paused }}"on"{{ else }}"off"{{ end }}
 spec:
   instances: {{ .Values.postgres.instances }}
   storage:

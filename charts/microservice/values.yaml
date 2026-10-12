@@ -32,6 +32,10 @@ probes:
 # On real nodes with CPU requests sized properly, drop the last two.
 jvmOptions: -XX:ActiveProcessorCount=2 -XX:TieredStopAtLevel=1 -XX:+UseSerialGC
 
+# Set per environment by apps/appset.yaml. true = Deployment scaled to 0 and Postgres
+# hibernated (pods stopped, PVC and data kept). Undo by flipping it back to false.
+paused: false
+
 # Plain environment variables: NAME: value
 env: {}
 # From Secrets: NAME: { secret: <name>, key: <key> }

@@ -5,7 +5,9 @@ metadata:
   labels:
     {{- include "microservice.labels" . | nindent 4 }}
 spec:
-  {{- if not .Values.autoscaling.enabled }}
+  {{- if .Values.paused }}
+  replicas: 0
+  {{- else if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
   {{- end }}
   revisionHistoryLimit: 3 # rollback is `git revert`, old ReplicaSets are not needed

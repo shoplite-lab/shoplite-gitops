@@ -13,6 +13,7 @@
 #   shop-*/order-service-oidc      order-service client secret -> client-credentials grant
 #   observability/grafana-secrets  Grafana OIDC client secret + break-glass admin password
 #   argocd/argocd-oidc             Argo CD OIDC client secret (read by argocd-cm as $argocd-oidc:client-secret)
+#   kafka/kafka-ui-oidc            Kafbat UI OIDC client secret
 set -euo pipefail
 
 ISSUER=http://auth.localhost/realms/shoplite # must equal the token "iss" claim
@@ -20,7 +21,7 @@ ISSUER=http://auth.localhost/realms/shoplite # must equal the token "iss" claim
 ROTATE=false
 [[ "${1:-}" == "--rotate" ]] && ROTATE=true
 
-for ns in keycloak kong shop-dev shop-prod observability argocd; do
+for ns in keycloak kong kafka shop-dev shop-prod observability argocd; do
   kubectl get namespace "$ns" >/dev/null 2>&1 || kubectl create namespace "$ns" >/dev/null
 done
 
@@ -53,6 +54,7 @@ openssl pkey -in "$tmp/key.pem" -pubout -out "$tmp/pub.pem"
 order_secret=$(keep_or_new keycloak realm-secrets ORDER_SERVICE_CLIENT_SECRET 24)
 grafana_secret=$(keep_or_new keycloak realm-secrets GRAFANA_CLIENT_SECRET 24)
 argocd_secret=$(keep_or_new keycloak realm-secrets ARGOCD_CLIENT_SECRET 24)
+kafka_ui_secret=$(keep_or_new keycloak realm-secrets KAFKA_UI_CLIENT_SECRET 24)
 
 apply() { kubectl apply -f - >/dev/null; }
 
@@ -61,6 +63,7 @@ kubectl create secret generic realm-secrets -n keycloak \
   --from-literal=ORDER_SERVICE_CLIENT_SECRET="$order_secret" \
   --from-literal=GRAFANA_CLIENT_SECRET="$grafana_secret" \
   --from-literal=ARGOCD_CLIENT_SECRET="$argocd_secret" \
+  --from-literal=KAFKA_UI_CLIENT_SECRET="$kafka_ui_secret" \
   --from-literal=ALICE_PASSWORD="$(keep_or_new keycloak realm-secrets ALICE_PASSWORD 6)" \
   --from-literal=BOB_PASSWORD="$(keep_or_new keycloak realm-secrets BOB_PASSWORD 6)" \
   --from-literal=DEVOPS1_PASSWORD="$(keep_or_new keycloak realm-secrets DEVOPS1_PASSWORD 6)" \
@@ -91,5 +94,9 @@ kubectl create secret generic argocd-oidc -n argocd \
   --from-literal=client-secret="$argocd_secret" \
   --dry-run=client -o yaml | kubectl label --local -f - app.kubernetes.io/part-of=argocd -o yaml | apply
 
+kubectl create secret generic kafka-ui-oidc -n kafka \
+  --from-literal=client-secret="$kafka_ui_secret" \
+  --dry-run=client -o yaml | apply
+
 echo "   in place: keycloak/realm-secrets, kong/keycloak-jwt, shop-{dev,prod}/order-service-oidc,"
-echo "             observability/grafana-secrets, argocd/argocd-oidc"
+echo "             observability/grafana-secrets, argocd/argocd-oidc, kafka/kafka-ui-oidc"

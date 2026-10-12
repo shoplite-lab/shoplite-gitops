@@ -1,0 +1,92 @@
+# Kafbat UI: browse topics and message payloads, consumer group offsets, topic config.
+# Grafana answers "how much / how late" (lag, throughput); this answers "what exactly is in
+# dev.order.created, and where is notification-service-dev reading".
+#
+# Login through Keycloak (client `kafka-ui`), roles from the token's `groups` claim:
+# devops -> everything, viewers -> read-only (incl. message payloads), anyone else -> nothing.
+# Wave 5: Kafka and Keycloak (wave 0) are Healthy, OIDC discovery works on first start.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kafka-ui
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  project: default
+  source:
+    repoURL: https://kafbat.github.io/helm-charts
+    chart: kafka-ui
+    targetRevision: 1.6.5
+    helm:
+      releaseName: kafka-ui
+      valuesObject:
+        fullnameOverride: kafka-ui
+        env:
+          # Spring relaxed binding: this env var IS auth.oauth2.client.keycloak.clientSecret,
+          # so the secret never appears in the config below (or in git).
+          - name: AUTH_OAUTH2_CLIENT_KEYCLOAK_CLIENTSECRET
+            valueFrom:
+              secretKeyRef: { name: kafka-ui-oidc, key: client-secret } # bootstrap/secrets.sh
+          # Same laptop tuning as the services (charts/microservice/values.yaml).
+          - name: JAVA_TOOL_OPTIONS
+            value: -XX:ActiveProcessorCount=2 -XX:TieredStopAtLevel=1 -XX:+UseSerialGC -XX:MaxRAMPercentage=75
+        resources:
+          requests: { cpu: 20m, memory: 384Mi }
+          limits: { memory: 768Mi }
+        probes:
+          startup:
+            failureThreshold: 15 # 15 x 40s: room for a slow JVM start on a busy laptop
+        ingress:
+          enabled: true
+          ingressClassName: kong
+          host: kafka.localhost
+        yamlApplicationConfig:
+          kafka:
+            clusters:
+              - name: shoplite
+                bootstrapServers: shoplite-kafka-bootstrap.kafka:9092
+          auth:
+            type: OAUTH2
+            oauth2:
+              client:
+                keycloak:
+                  provider: keycloak
+                  client-name: Keycloak
+                  clientId: kafka-ui
+                  scope: [openid, profile, email, groups]
+                  # Fetched from inside the pod: platform-resources/local-dns sends
+                  # auth.localhost to Kong, exactly like Argo CD.
+                  issuer-uri: http://auth.localhost/realms/shoplite
+                  user-name-attribute: preferred_username
+                  custom-params:
+                    type: oauth # generic provider: roles come from the claim below
+                    roles-field: groups
+          rbac:
+            roles:
+              - name: admins
+                clusters: [shoplite]
+                subjects:
+                  - { provider: oauth, type: role, value: devops }
+                permissions:
+                  - { resource: applicationconfig, actions: all }
+                  - { resource: clusterconfig, actions: all }
+                  - { resource: topic, value: ".*", actions: all }
+                  - { resource: consumer, value: ".*", actions: all }
+                  - { resource: acl, actions: [view] }
+              - name: readonly
+                clusters: [shoplite]
+                subjects:
+                  - { provider: oauth, type: role, value: viewers }
+                permissions:
+                  - { resource: clusterconfig, actions: [view] }
+                  - { resource: topic, value: ".*", actions: [VIEW, MESSAGES_READ] }
+                  - { resource: consumer, value: ".*", actions: [view] }
+                  - { resource: acl, actions: [view] }
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kafka
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

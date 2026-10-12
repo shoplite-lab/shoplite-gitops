@@ -111,6 +111,18 @@ clients:
       post.logout.redirect.uris: http://argocd.localhost##http://argocd.localhost/*
     defaultClientScopes: [web-origins, acr, profile, roles, basic, email, groups]
 
+  # Kafbat UI (Spring Security OAuth2 client, redirect path /login/oauth2/code/<registration>).
+  - clientId: kafka-ui
+    name: Kafbat UI
+    publicClient: false
+    secret: $(env:KAFKA_UI_CLIENT_SECRET)
+    standardFlowEnabled: true
+    directAccessGrantsEnabled: false
+    redirectUris: [http://kafka.localhost/login/oauth2/code/keycloak]
+    attributes:
+      post.logout.redirect.uris: http://kafka.localhost/*
+    defaultClientScopes: [web-origins, acr, profile, roles, basic, email, groups]
+
 users:
   - username: alice
     enabled: true

@@ -5,3 +5,6 @@ maxmemory: 64mb
 resources:
   requests: { cpu: 20m, memory: 32Mi }
   limits: { memory: 128Mi }
+
+# Set per environment by apps/appset.yaml; true = scaled to 0 (see the appset).
+paused: false

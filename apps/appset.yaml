@@ -20,8 +20,10 @@ spec:
         generators:
           - list:
               elements:
-                - env: dev
-                - env: prod
+                # paused: "true" scales the whole environment to 0 (Postgres hibernated,
+                # data kept) to free CPU/RAM on a laptop. Flip back to "false" to resume.
+                - { env: dev, paused: "false" }
+                - { env: prod, paused: "true" }
           - list:
               elements:
                 - { component: valkey, chart: valkey }
@@ -48,6 +50,9 @@ spec:
           valueFiles:
             - "../../apps/{{ .component }}/values.yaml"
             - "../../apps/{{ .component }}/values-{{ .env }}.yaml"
+          parameters:
+            - name: paused
+              value: "{{ .paused }}"
       destination:
         server: https://kubernetes.default.svc
         namespace: "shop-{{ .env }}"

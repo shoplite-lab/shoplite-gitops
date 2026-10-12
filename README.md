@@ -27,7 +27,7 @@ k3d cluster delete shoplite     # xoá hẳn
 |---|---|
 | http://argocd.localhost | Argo CD UI, đăng nhập qua Keycloak (Phase 5). Từ đầu tới lúc app `keycloak` Healthy chưa đăng nhập được, nhưng Argo CD vẫn sync bình thường |
 | http://dev.shop.localhost | Môi trường dev (namespace `shop-dev`) |
-| http://shop.localhost | Môi trường prod (namespace `shop-prod`) |
+| http://shop.localhost | Môi trường prod (namespace `shop-prod`). Đang **tạm tắt** cho nhẹ máy: `paused: "true"` ở `apps/appset.yaml` (Deployment về 0, Postgres hibernate, giữ data). Đổi về `"false"` rồi push để bật lại |
 
 Login / đặt hàng: xem phần Phase 4 bên dưới.
 
@@ -121,6 +121,7 @@ Sửa realm = sửa `platform-resources/keycloak/realm.yaml` rồi push. Argo CD
 |---|---|
 | http://grafana.localhost | Grafana, tự chuyển sang Keycloak. `devops1` → Admin, group `viewers` → Viewer, user khác bị từ chối. Admin dự phòng: `/login?disableAutoLogin`, user `admin`, password trong Secret `observability/grafana-secrets` |
 | http://argocd.localhost | Bấm **Log in via Keycloak**. `devops` (devops1): admin, nhưng với app prod chỉ được xem, không Sync/sửa/xoá/restart, prod chỉ đổi qua PR. `viewers` (viewer1): chỉ xem app dev. User khác vào được nhưng không thấy app nào |
+| http://kafka.localhost | Kafbat UI: xem topic, nội dung message, offset/lag của consumer group. SSO Keycloak: `devops` toàn quyền, `viewers` chỉ xem |
 
 Đăng nhập Shop bằng `devops1` trước, sau đó mở Grafana và Argo CD sẽ vào thẳng, không hỏi lại password (cùng session Keycloak). Logout ở Grafana cũng kết thúc session Keycloak (single logout).
 
