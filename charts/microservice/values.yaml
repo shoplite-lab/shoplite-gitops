@@ -7,6 +7,7 @@ image:
 
 replicaCount: 1
 containerPort: 8080
+runAsUser: 10001 # USER in the services' Dockerfiles
 
 # Spring Boot Actuator probe groups (management.endpoint.health.probes.enabled=true).
 probes:

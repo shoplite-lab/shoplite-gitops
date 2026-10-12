@@ -1,5 +1,6 @@
 # Shared by dev and prod. Chart defaults: charts/microservice/values.yaml
 # nginx serving the React build; config is injected at start-up into /env.js.
+runAsUser: 101 # nginx-unprivileged
 probes:
   liveness: /healthz
   readiness: /healthz

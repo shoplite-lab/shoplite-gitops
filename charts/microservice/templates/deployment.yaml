@@ -24,6 +24,9 @@ spec:
     spec:
       securityContext:
         runAsNonRoot: true
+        # Explicit UID for every container of the pod, including injected ones: the OTel
+        # agent's init container image defaults to root and would be refused otherwise.
+        runAsUser: {{ .Values.runAsUser }}
         seccompProfile:
           type: RuntimeDefault
       # Spread replicas over nodes when possible (soft rule: still schedules on 1 node).
