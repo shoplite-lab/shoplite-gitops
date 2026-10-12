@@ -1,4 +1,4 @@
 # image.tag is written by CI (update-gitops) on every merge to main.
 image:
   repository: ghcr.io/shoplite-lab/shoplite-product-service
-  tag: main
+  tag: 09a4d4386192ffb4ac5a207a2327d45e3b735784
