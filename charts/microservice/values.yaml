@@ -50,6 +50,9 @@ autoscaling:
   minReplicas: 1
   maxReplicas: 3
   targetCPUUtilizationPercentage: 70
+  # Scale up only on load that lasts: a JVM burns CPU for a minute or two after it turns
+  # Ready (JIT warm-up), which the HPA would otherwise read as traffic.
+  scaleUpStabilizationSeconds: 120
 
 # Only meaningful with 2+ replicas: keeps one pod up during node drains.
 podDisruptionBudget:

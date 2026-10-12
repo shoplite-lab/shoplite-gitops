@@ -19,6 +19,9 @@ spec:
         target:
           type: Utilization
           averageUtilization: {{ .Values.autoscaling.targetCPUUtilizationPercentage }}
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: {{ .Values.autoscaling.scaleUpStabilizationSeconds }}
 {{- end }}
 {{- if .Values.podDisruptionBudget.enabled }}
 ---

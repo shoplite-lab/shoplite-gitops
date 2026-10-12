@@ -1,6 +1,5 @@
 # Shared helpers for the Phase 7 scenarios. Sourced, not run. Dev environment only.
 set -euo pipefail
-export MSYS_NO_PATHCONV=1 # Git Bash on Windows: do not rewrite /opt/... arguments into C:/...
 
 NS=shop-dev
 HOST=dev.shop.localhost

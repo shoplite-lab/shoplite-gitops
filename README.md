@@ -193,8 +193,8 @@ bash scenarios/<script>.sh <lệnh>
 |---|---|---|---|
 | Kill pod | `self-healing.sh kill` | ReplicaSet tạo lại pod ngay. 1 replica = có downtime lúc pod mới boot | Argo CD (cây resource của `order-service-dev`) |
 | Drift | `self-healing.sh drift` | `kubectl scale` tay → Argo CD thấy OutOfSync → self-heal về đúng git. Sửa thật phải sửa trong git | Argo CD: app chuyển OutOfSync rồi Synced |
-| Tải cao + HPA | `load-hpa.sh` | k6 bắn `GET /api/products` 3 phút → CPU vượt 70% request → HPA thêm pod thứ 2; hết tải 5 phút sau mới bớt | Grafana *ShopLite overview* (req/s, p95), Argo CD (pod thứ 2) |
-| Rate limit | `rate-limit.sh` | Kong chặn `/api/orders` quá 20 req/phút/IP bằng 429, request không tới service | Output script, header `RateLimit-*` |
+| Tải cao + HPA | `load-hpa.sh` | k6 bắn `GET /api/products` 3 phút → CPU vượt 70% request liên tục 2 phút → HPA thêm pod thứ 2; hết tải 5 phút sau mới bớt. Cửa sổ 2 phút để HPA không nhầm CPU lúc JVM vừa khởi động (JIT warm-up) là tải thật | Grafana *ShopLite overview* (req/s, p95), Argo CD (pod thứ 2) |
+| Rate limit | `rate-limit.sh` | Kong chặn `/api/orders` quá 20 req/phút/IP bằng 429, request không tới service. Chạy sau cùng hoặc đợi 1 phút: quota dùng chung với các script đặt hàng khác | Output script, header `RateLimit-*` |
 | Circuit breaker | `circuit-breaker.sh break` → `status` → `restore` | product-service chết → order-service thử vài lần rồi **mở mạch**, trả 503 ngay không gọi nữa; bật lại → HALF_OPEN → CLOSED | Tempo: trace lỗi lúc đầu có span gọi product-service, sau đó không còn |
 | Kafka lag | `kafka-lag.sh break 5` → `status` → `restore` | notification-service chết nhưng **đặt hàng vẫn chạy** (bất đồng bộ); event nằm chờ trong Kafka, bật lại thì xử lý bù hết | Kafka UI › Consumers, Grafana panel *Kafka consumer lag*; `break 60` để thấy alert `KafkaConsumerLagHigh` |
 

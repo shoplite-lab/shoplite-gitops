@@ -11,7 +11,8 @@ source "$(dirname "$0")/lib.sh"
 GROUP=notification-service-dev
 
 lag() {
-  kubectl -n kafka exec shoplite-dual-role-0 -- /opt/kafka/bin/kafka-consumer-groups.sh \
+  # MSYS_NO_PATHCONV: stop Git Bash on Windows from rewriting /opt/kafka/... into C:/...
+  MSYS_NO_PATHCONV=1 kubectl -n kafka exec shoplite-dual-role-0 -- /opt/kafka/bin/kafka-consumer-groups.sh \
     --bootstrap-server localhost:9092 --describe --group "$GROUP" 2>/dev/null |
     awk '/TOPIC/ || /dev.order.created/ {printf "  %-18s %-9s %-14s %-14s %s\n", $2, $3, $4, $5, $6}'
 }

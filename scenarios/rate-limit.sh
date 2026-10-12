@@ -17,4 +17,4 @@ done | sort | uniq -c | awk '{print "  HTTP", $2, "x", $1}'
 say "Headers Kong adds (remaining quota for this minute)"
 curl -s -D - -o /dev/null -H "Authorization: Bearer $TOKEN" "http://$HOST/api/orders" |
   grep -i -E '^HTTP|ratelimit|retry-after'
-echo "The counter resets at the next minute."
+echo "The counter resets at the next minute. Other scenarios place orders too: wait a minute before running them."
