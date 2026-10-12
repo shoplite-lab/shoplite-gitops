@@ -1,7 +1,6 @@
 # image.tag changes only through a promote PR (Actions > promote).
 image:
   repository: ghcr.io/shoplite-lab/shoplite-frontend
-  tag: main
-
+  tag: 625e93b99e9ca8445832afaefa157424559cb87d
 ingress:
   host: shop.localhost
