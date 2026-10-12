@@ -1,0 +1,242 @@
+{
+  "realm": "shoplite",
+  "enabled": true,
+  "displayName": "ShopLite",
+  "sslRequired": "none",
+  "registrationAllowed": true,
+  "loginWithEmailAllowed": true,
+  "rememberMe": true,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "roles": {
+    "realm": [
+      {
+        "name": "customer",
+        "description": "Normal shopper"
+      },
+      {
+        "name": "admin",
+        "description": "Can manage products"
+      },
+      {
+        "name": "stock-writer",
+        "description": "Service role: reserve stock (order-service service account)"
+      }
+    ]
+  },
+  "defaultRole": {
+    "name": "default-roles-shoplite",
+    "composite": true,
+    "composites": {
+      "realm": [
+        "offline_access",
+        "uma_authorization",
+        "customer"
+      ]
+    }
+  },
+  "groups": [
+    {
+      "name": "devops",
+      "path": "/devops"
+    },
+    {
+      "name": "viewers",
+      "path": "/viewers"
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "shop-frontend",
+      "name": "ShopLite Web",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": [
+        "http://shop.localhost:8000/*",
+        "http://localhost:5173/*"
+      ],
+      "webOrigins": [
+        "+"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "+"
+      },
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "config": {
+            "claim.name": "groups",
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "order-service",
+      "name": "Order Service (machine)",
+      "publicClient": false,
+      "secret": "order-service-dev-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true
+    },
+    {
+      "clientId": "grafana",
+      "name": "Grafana",
+      "publicClient": false,
+      "secret": "grafana-dev-secret",
+      "standardFlowEnabled": true,
+      "redirectUris": [
+        "http://grafana.localhost:8000/login/generic_oauth",
+        "http://localhost:3000/login/generic_oauth"
+      ],
+      "webOrigins": [
+        "+"
+      ],
+      "attributes": {
+        "post.logout.redirect.uris": "+"
+      },
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "config": {
+            "claim.name": "groups",
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "alice",
+      "enabled": true,
+      "email": "alice@shoplite.local",
+      "emailVerified": true,
+      "firstName": "Alice",
+      "lastName": "Customer",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "alice",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "default-roles-shoplite"
+      ],
+      "groups": []
+    },
+    {
+      "username": "bob",
+      "enabled": true,
+      "email": "bob@shoplite.local",
+      "emailVerified": true,
+      "firstName": "Bob",
+      "lastName": "Admin",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "bob",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "default-roles-shoplite",
+        "admin"
+      ],
+      "groups": []
+    },
+    {
+      "username": "devops1",
+      "enabled": true,
+      "email": "devops1@shoplite.local",
+      "emailVerified": true,
+      "firstName": "Dev",
+      "lastName": "Ops",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "devops1",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "default-roles-shoplite"
+      ],
+      "groups": [
+        "/devops"
+      ]
+    },
+    {
+      "username": "service-account-order-service",
+      "enabled": true,
+      "serviceAccountClientId": "order-service",
+      "realmRoles": [
+        "default-roles-shoplite",
+        "stock-writer"
+      ]
+    }
+  ],
+  "components": {
+    "org.keycloak.keys.KeyProvider": [
+      {
+        "name": "rsa-dev-fixed",
+        "providerId": "rsa",
+        "subComponents": {},
+        "config": {
+          "priority": [
+            "200"
+          ],
+          "enabled": [
+            "true"
+          ],
+          "active": [
+            "true"
+          ],
+          "algorithm": [
+            "RS256"
+          ],
+          "privateKey": [
+            "MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDBfDrchSXGuLu5NElZyGadpW+0xCBaLRUhP6iXOJPZwGT5YCtEA138sNTXtK85lgGRYn86G8Nx2FswLbpFVPaYLOns8yCYAvhcpTxU1fAJmnxZhuadZOPuRTaduXeyvpyRf/ozitt4NBkNuqf4XYbFtZ4Jxj3X2u+pYkPdMq0ZEKDXKBns7LWjKeVlEjWk93uHw5nRBt21XXcuyhz0aNHZjxKjsmCFCW+0nWAkl3d94Buwb+JyuHt4Y7EL3PnyMwdXV/78v5rFblHZ27IuCQahmojoWC0yGZ7ma/sWuWubZ2xuACRd1TT60XYCvPJoTnNK6ZlUqaEbpVBEh/nArGl3AgMBAAECggEAIykVszw4/K9WYdYYHEo4J57IOXPIo0p9BAFC/FQKPjBhyRWKVz47Zq+lxhsuGothdo+NKjygXEBiddNhfbbuZwIGcopOGoGzq3ZVi98i00PxI/3JS8HpT8PhJHFvSJqt7hzxFUu/DU1+XgnU+2PXmXcjJIiTdXXyRng2d+x9G0gifiW38UyM9TqDl9uJClPsYbhGyo9kDoe6txLOEk+mvf+0GBvmLbqsbLATr80Lyoy4I5EQTNyyqPk0OgRhT7Fnjw8A6jcm6EbPdudjZgVUBR7dRTJmq6Ym8fyaCYMxfmaP3fO9uE1eiphngV/iGrWneVCY0oFuDSi1+Gfit6OTnQKBgQD2GYs7Ace1TIzylwLMfCjWidzlwdVg8iTafZre9EuiQ6phXatXMq8mf7rjgNEJKyZUw9fBlkz2ZxMb/OLYMy4Ss2CqvgdPAMUJdFL2ue/JHwk1O4Dup8ZPFFTpHWCkVUnvJktj2jFIAehL2r0d6+EUCer8sa44u5U1UizvpsWGRQKBgQDJRNYJNd+kB+h5/hbJMXh8ewXUGhDrU3tOorp5zxw/6zh9jz25syZcQ+j1rueeMQKGOj4ANgYX0vhcU8gdmJHzF/cHWeDCLWolPzi9vqaSawsclL2f5GJpCubNOqfe6rciEFpcJqutmsBMtwWMWyhQY/SUz2Lf89alKO+G//uaiwKBgQCn+W9q6yAgwwtBWYlzgRtus9Kuj8rQzPYSm8DlhOFK89yLcJ/OeK3MHUq2leoX0/fpy3Ksk6YcWOZWKBm9b9F2ujC02derON9EQL2P4gGkySZDy0WJn8Jfn4UFSCP6hqxcK0sx8G/KsmKXw8lpbuLGBq75o11DI+YH6vr46F/R8QKBgCCeLEXP2k+eDHoAyLaQcuNRmK84DjflDp2+15O4Ee718vC+TxWSSAw54T43u0eyz6LrO3MTTkd8JE3qMgtB151a6+jgEwHFFGe26D4v8JTYDjPykwyfmadGYgMul1gUF9vIZKx8g+QdqT6FhrupZk4o9NFNDswWm1mm2bK6N49jAoGBAIWagEXlnAQOaGjLYCvDzBZsneDFuW/WGb5zxK1TzCRZpg0kqkwlF/FRXL3DmMhrTcOisGF0qq5rNh4UPz5pcjiU4FIxxlY023/Tuf4b6I8hhay+PVpcnuwqpzWi3pgTJmei9c+FE/f+mAAPPhxt1Np1KgAwy+giC7M65k87arMR"
+          ]
+        }
+      },
+      {
+        "name": "hmac-generated",
+        "providerId": "hmac-generated",
+        "subComponents": {},
+        "config": {
+          "priority": [
+            "100"
+          ],
+          "algorithm": [
+            "HS512"
+          ]
+        }
+      },
+      {
+        "name": "aes-generated",
+        "providerId": "aes-generated",
+        "subComponents": {},
+        "config": {
+          "priority": [
+            "100"
+          ]
+        }
+      }
+    ]
+  }
+}

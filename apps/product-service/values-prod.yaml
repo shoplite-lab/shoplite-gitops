@@ -1,0 +1,4 @@
+# image.tag changes only through a promote PR (Actions > promote).
+image:
+  repository: ghcr.io/hophan-alphaway/shoplite-product-service
+  tag: main

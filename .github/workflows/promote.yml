@@ -1,0 +1,57 @@
+# Promote dev -> prod: copy image.tag from values-dev.yaml to values-prod.yaml and open a PR.
+# Merging the PR is the approval; ArgoCD then syncs prod. Rollback = revert that PR.
+name: promote
+
+on:
+  workflow_dispatch:
+    inputs:
+      service:
+        description: Service to promote
+        type: choice
+        default: all
+        options: [all, frontend, user-service, product-service, order-service, notification-service]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Copy dev tags to prod and open PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SERVICE: ${{ inputs.service }}
+        run: |
+          set -euo pipefail
+          if [ "$SERVICE" = all ]; then
+            services="frontend user-service product-service order-service notification-service"
+          else
+            services="$SERVICE"
+          fi
+
+          body="| Service | prod (before) | prod (after) |"$'\n'"|---|---|---|"
+          for s in $services; do
+            export TAG; TAG=$(yq '.image.tag' "apps/$s/values-dev.yaml")
+            old=$(yq '.image.tag' "apps/$s/values-prod.yaml")
+            yq -i '.image.tag = strenv(TAG)' "apps/$s/values-prod.yaml"
+            body+=$'\n'"| $s | \`${old:0:12}\` | \`${TAG:0:12}\` |"
+          done
+
+          if git diff --quiet; then
+            echo "prod already matches dev"; exit 0
+          fi
+
+          branch="promote/${SERVICE}-$(date -u +%Y%m%d-%H%M%S)"
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git commit -am "chore(prod): promote ${SERVICE}"
+          git push -u origin "$branch"
+          gh pr create --base main --head "$branch" \
+            --title "Promote ${SERVICE} to prod" \
+            --body "$body"

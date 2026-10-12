@@ -1,0 +1,126 @@
+# Kong DB-less declarative config (LOCAL docker-compose only).
+# On Kubernetes the same intent is expressed as Kong CRDs in shoplite-gitops/platform-resources.
+_format_version: "3.0"
+
+services:
+  - name: frontend
+    url: http://frontend:8080
+    routes:
+      - name: frontend
+        hosts: [shop.localhost]
+        paths: ["/"]
+
+  - name: user-service
+    url: http://user-service:8080
+    routes:
+      - name: users
+        hosts: [shop.localhost]
+        paths: [/api/users]
+        strip_path: false
+    plugins:
+      - name: jwt
+        config: &jwt
+          key_claim_name: iss
+          claims_to_verify: [exp]
+          uri_param_names: []
+          cookie_names: []
+
+  - name: product-service
+    url: http://product-service:8080
+    routes:
+      # Anonymous users may browse the catalog.
+      - name: products-read
+        hosts: [shop.localhost]
+        paths: [/api/products]
+        methods: [GET, OPTIONS]
+        strip_path: false
+      - name: products-write
+        hosts: [shop.localhost]
+        paths: [/api/products]
+        methods: [POST, PUT, DELETE]
+        strip_path: false
+        plugins:
+          - name: jwt
+            config: *jwt
+
+  - name: order-service
+    url: http://order-service:8080
+    routes:
+      - name: orders
+        hosts: [shop.localhost]
+        paths: [/api/orders]
+        strip_path: false
+    plugins:
+      - name: jwt
+        config: *jwt
+      - name: rate-limiting
+        config:
+          minute: 20
+          policy: local
+          limit_by: ip
+
+  - name: notification-service
+    url: http://notification-service:8080
+    routes:
+      - name: notifications
+        hosts: [shop.localhost]
+        paths: [/api/notifications]
+        strip_path: false
+    plugins:
+      - name: jwt
+        config: *jwt
+
+  - name: keycloak
+    url: http://keycloak:8080
+    routes:
+      - name: keycloak
+        hosts: [auth.localhost]
+        paths: ["/"]
+        preserve_host: true
+
+  - name: grafana
+    url: http://lgtm:3000
+    routes:
+      - name: grafana
+        hosts: [grafana.localhost]
+        paths: ["/"]
+        preserve_host: true
+
+# Every token issued by the Keycloak realm maps to this one consumer:
+# the jwt plugin looks up the credential whose key equals the token's iss claim
+# and verifies the RS256 signature with the realm public key.
+consumers:
+  - username: keycloak-shoplite
+    jwt_secrets:
+      - key: http://auth.localhost:8000/realms/shoplite
+        algorithm: RS256
+        rsa_public_key: |
+          -----BEGIN PUBLIC KEY-----
+          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwXw63IUlxri7uTRJWchm
+          naVvtMQgWi0VIT+olziT2cBk+WArRANd/LDU17SvOZYBkWJ/OhvDcdhbMC26RVT2
+          mCzp7PMgmAL4XKU8VNXwCZp8WYbmnWTj7kU2nbl3sr6ckX/6M4rbeDQZDbqn+F2G
+          xbWeCcY919rvqWJD3TKtGRCg1ygZ7Oy1oynlZRI1pPd7h8OZ0QbdtV13Lsoc9GjR
+          2Y8So7JghQlvtJ1gJJd3feAbsG/icrh7eGOxC9z58jMHV1f+/L+axW5R2duyLgkG
+          oZqI6FgtMhme5mv7Frlrm2dsbgAkXdU0+tF2ArzyaE5zSumZVKmhG6VQRIf5wKxp
+          dwIDAQAB
+          -----END PUBLIC KEY-----
+
+plugins:
+  - name: correlation-id
+    config:
+      header_name: X-Request-ID
+      generator: uuid
+      echo_downstream: true
+  - name: cors
+    config:
+      origins: ["http://localhost:5173", "http://shop.localhost:8000"]
+      credentials: true
+      headers: [Authorization, Content-Type, X-Request-ID]
+  - name: prometheus
+  - name: opentelemetry
+    config:
+      traces_endpoint: http://lgtm:4318/v1/traces
+      resource_attributes:
+        service.name: kong
+      propagation:
+        default_format: w3c
