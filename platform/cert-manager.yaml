@@ -1,0 +1,41 @@
+# cert-manager: issues and renews TLS certificates declared as `Certificate` resources.
+# Now: the webhook certificates of the OpenTelemetry and Prometheus operators (no Helm
+# hook Jobs, which Argo CD handles poorly). Phase 6: Let's Encrypt certs for the real domain.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cert-manager
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-15" # before the operators that ask it for certificates
+spec:
+  project: default
+  source:
+    repoURL: https://charts.jetstack.io
+    chart: cert-manager
+    targetRevision: v1.21.2
+    helm:
+      releaseName: cert-manager
+      valuesObject:
+        crds:
+          enabled: true
+        resources:
+          requests: { cpu: 10m, memory: 32Mi }
+        webhook:
+          resources:
+            requests: { cpu: 10m, memory: 16Mi }
+        cainjector:
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+        startupapicheck:
+          enabled: false # post-install Job; Argo CD would re-run it on every sync
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

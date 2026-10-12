@@ -1,0 +1,17 @@
+# Inside the cluster nothing resolves auth.localhost, yet Argo CD must call Keycloak at
+# exactly that URL: it reads the OIDC discovery document from
+# <issuer>/.well-known/openid-configuration, and issuer = http://auth.localhost/realms/shoplite.
+# This rewrite sends auth.localhost to the Kong proxy Service, i.e. the same route the browser takes.
+#
+# (Services and Grafana do not need it: they are given in-cluster URLs for keys/tokens and
+# only compare the issuer as a string.)
+#
+# k3s' CoreDNS imports every *.override key of this ConfigMap into its main server block.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns-custom
+  namespace: kube-system
+data:
+  auth-localhost.override: |
+    rewrite name exact auth.localhost kong-gateway-proxy.kong.svc.cluster.local

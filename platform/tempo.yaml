@@ -1,0 +1,50 @@
+# Tempo: trace storage, queried from Grafana with TraceQL. Spans arrive from the
+# OTel Collector over OTLP. The metrics generator turns spans into RED metrics and the
+# service graph (who calls whom) and writes them to Prometheus.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: tempo
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-10"
+spec:
+  project: default
+  source:
+    repoURL: https://grafana-community.github.io/helm-charts
+    chart: tempo
+    targetRevision: 3.1.0
+    helm:
+      releaseName: tempo
+      valuesObject:
+        fullnameOverride: tempo # -> Service tempo.observability (3200 query, 4317/4318 OTLP)
+        tempo:
+          reportingEnabled: false
+          retention: 24h
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 512Mi }
+          receivers:
+            otlp:
+              protocols:
+                grpc: { endpoint: "0.0.0.0:4317" }
+                http: { endpoint: "0.0.0.0:4318" }
+          metricsGenerator:
+            enabled: true
+            remoteWriteUrl: http://kps-prometheus.observability:9090/api/v1/write
+          overrides:
+            defaults:
+              metrics_generator:
+                processors: [service-graphs, span-metrics]
+        persistence:
+          enabled: true
+          size: 2Gi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

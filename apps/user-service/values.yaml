@@ -5,6 +5,8 @@ postgres:
   owner: users_app
 oidc:
   enabled: true
+observability:
+  enabled: true
 ingress:
   enabled: true
   routes:

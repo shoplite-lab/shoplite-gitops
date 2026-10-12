@@ -54,6 +54,13 @@ oidc:
   issuerUri: http://auth.localhost/realms/shoplite
   jwkSetUri: http://keycloak-service.keycloak:8080/realms/shoplite/protocol/openid-connect/certs
 
+# Traces + metrics: the OpenTelemetry Java agent, injected by the OTel Operator from the
+# Instrumentation resource below (platform-resources/observability), no code change.
+# Logs: JSON on stdout, shipped to Loki by Alloy.
+observability:
+  enabled: false
+  instrumentation: observability/java # <namespace>/<Instrumentation name>
+
 # Database-per-service: a dedicated CloudNativePG cluster owned by this release.
 # The operator generates the credentials Secret <release>-db-app; the Deployment reads
 # DB_URL / DB_USER / DB_PASSWORD from it, so no password is ever written by a human.

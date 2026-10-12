@@ -25,6 +25,10 @@ spec:
           env:
             proxy_access_log: /dev/stdout
             proxy_error_log: /dev/stderr
+            # Spans for Kong's own phases (router, balancer, DNS, upstream call); the
+            # global `opentelemetry` plugin (platform-resources/kong) exports them.
+            tracing_instrumentations: all
+            tracing_sampling_rate: "1.0"
           resources:
             requests: { cpu: 100m, memory: 256Mi }
             limits: { memory: 512Mi }

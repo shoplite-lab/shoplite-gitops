@@ -83,6 +83,34 @@ clients:
     directAccessGrantsEnabled: false
     serviceAccountsEnabled: true
 
+  # Ops tools: confidential clients (the secret lives in the tool's pod). Both read the
+  # `groups` claim: devops -> admin, viewers -> read-only, anyone else gets no access.
+  # Same realm session as the shop: logged in once, Grafana and Argo CD open without a password.
+  - clientId: grafana
+    name: Grafana
+    publicClient: false
+    secret: $(env:GRAFANA_CLIENT_SECRET)
+    standardFlowEnabled: true
+    directAccessGrantsEnabled: false
+    redirectUris: [http://grafana.localhost/login/generic_oauth]
+    attributes:
+      pkce.code.challenge.method: S256
+      post.logout.redirect.uris: http://grafana.localhost/login
+    defaultClientScopes: [web-origins, acr, profile, roles, basic, email, groups]
+
+  - clientId: argocd
+    name: Argo CD
+    publicClient: false
+    secret: $(env:ARGOCD_CLIENT_SECRET)
+    standardFlowEnabled: true
+    directAccessGrantsEnabled: false
+    redirectUris:
+      - http://argocd.localhost/auth/callback
+      - http://localhost:8085/auth/callback # `argocd login --sso` from a terminal
+    attributes:
+      post.logout.redirect.uris: http://argocd.localhost##http://argocd.localhost/*
+    defaultClientScopes: [web-origins, acr, profile, roles, basic, email, groups]
+
 users:
   - username: alice
     enabled: true

@@ -16,6 +16,11 @@ spec:
     metadata:
       labels:
         {{- include "microservice.selectorLabels" . | nindent 8 }}
+      {{- if .Values.observability.enabled }}
+      annotations:
+        # The OTel Operator adds the Java agent to the pod when it is created.
+        instrumentation.opentelemetry.io/inject-java: {{ .Values.observability.instrumentation | quote }}
+      {{- end }}
     spec:
       securityContext:
         runAsNonRoot: true
@@ -61,6 +66,12 @@ spec:
             # Setting jwk-set-uri makes Spring skip issuer discovery and fetch keys from here.
             - name: SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWKSETURI
               value: {{ .Values.oidc.jwkSetUri | quote }}
+            {{- end }}
+            {{- if .Values.observability.enabled }}
+            # Spring Boot structured logging: one JSON object per line. The Java agent puts
+            # trace_id/span_id in the MDC, so each line carries the trace it belongs to.
+            - name: LOGGING_STRUCTURED_FORMAT_CONSOLE
+              value: logstash
             {{- end }}
             {{- range $name, $ref := .Values.secretEnv }}
             - name: {{ $name }}

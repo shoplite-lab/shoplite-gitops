@@ -1,0 +1,40 @@
+# Alert rules, evaluated by Prometheus and sent to Alertmanager.
+# Alertmanager has no receiver configured (demo): firing alerts show up in Grafana
+# (Alerting > Alert rules, datasource Prometheus) and in the Alertmanager UI.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: shoplite
+spec:
+  groups:
+    - name: shoplite
+      rules:
+        - alert: ServiceDown
+          expr: kube_deployment_status_replicas_available{namespace=~"shop-.*"} == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "{{ $labels.namespace }}/{{ $labels.deployment }} has no available pod"
+
+        # From the Java agent's http.server.request.duration histogram (OTLP -> Prometheus).
+        - alert: HighErrorRate
+          expr: |
+            sum by (k8s_namespace_name, job) (rate(http_server_request_duration_seconds_count{http_response_status_code=~"5.."}[5m]))
+              /
+            sum by (k8s_namespace_name, job) (rate(http_server_request_duration_seconds_count[5m]))
+              > 0.05
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.k8s_namespace_name }}/{{ $labels.job }}: {{ $value | humanizePercentage }} of requests fail with 5xx"
+
+        # Messages published but not yet processed by notification-service.
+        - alert: KafkaConsumerLagHigh
+          expr: sum by (consumergroup, topic) (kafka_consumergroup_lag) > 50
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Consumer group {{ $labels.consumergroup }} is {{ $value }} messages behind on {{ $labels.topic }}"

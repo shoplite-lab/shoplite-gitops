@@ -50,3 +50,10 @@ spec:
       resources:
         requests: { cpu: 20m, memory: 192Mi }
         limits: { memory: 256Mi }
+  # Consumer lag per group/topic as Prometheus metrics (PodMonitor in platform-resources/observability).
+  kafkaExporter:
+    groupRegex: ".*"
+    topicRegex: ".*"
+    resources:
+      requests: { cpu: 10m, memory: 32Mi }
+      limits: { memory: 128Mi }

@@ -1,0 +1,24 @@
+# Auto-instrumentation for Java. A pod annotated
+#   instrumentation.opentelemetry.io/inject-java: "observability/java"
+# gets an init container that copies the OTel Java agent into the pod, plus
+# JAVA_TOOL_OPTIONS=-javaagent:... and OTEL_* env vars (service name, k8s resource attributes).
+# The agent instruments Spring MVC, RestClient, JDBC, Kafka, Lettuce... and propagates the
+# W3C traceparent header, so one trace follows a request across services and through Kafka.
+apiVersion: opentelemetry.io/v1alpha1
+kind: Instrumentation
+metadata:
+  name: java
+spec:
+  exporter:
+    endpoint: http://otel-collector.observability:4318 # the Java agent speaks OTLP/HTTP
+  propagators: [tracecontext, baggage]
+  sampler:
+    type: parentbased_always_on # keep every trace (demo); production samples a fraction
+  java:
+    env:
+      - name: OTEL_LOGS_EXPORTER
+        value: none # logs go stdout -> Alloy -> Loki; the agent only adds trace_id to them
+      - name: OTEL_METRIC_EXPORT_INTERVAL
+        value: "15000"
+    resources:
+      limits: { memory: 64Mi }

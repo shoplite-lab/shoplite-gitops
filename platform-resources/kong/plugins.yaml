@@ -60,3 +60,39 @@ config:
   minute: 20
   policy: local # counters in each Kong pod's memory; use redis policy with several replicas
   limit_by: ip
+---
+# Traces start at the gateway: Kong creates the root span and passes a W3C traceparent
+# header upstream, so the services' spans join the same trace.
+apiVersion: configuration.konghq.com/v1
+kind: KongClusterPlugin
+metadata:
+  name: opentelemetry
+  annotations:
+    kubernetes.io/ingress.class: kong
+  labels:
+    global: "true"
+plugin: opentelemetry
+config:
+  traces_endpoint: http://otel-collector.observability:4318/v1/traces
+  resource_attributes:
+    service.name: kong
+  sampling_rate: 1
+  propagation:
+    default_format: w3c
+---
+# Request count, latency and bandwidth per route/service/status code, scraped from the
+# gateway's status port (PodMonitor kong in platform-resources/observability).
+apiVersion: configuration.konghq.com/v1
+kind: KongClusterPlugin
+metadata:
+  name: prometheus
+  annotations:
+    kubernetes.io/ingress.class: kong
+  labels:
+    global: "true"
+plugin: prometheus
+config:
+  status_code_metrics: true
+  latency_metrics: true
+  bandwidth_metrics: true
+  upstream_health_metrics: true

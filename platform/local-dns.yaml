@@ -1,0 +1,22 @@
+# k3d only (not used on GKE, where auth.<domain> resolves through real DNS).
+# Makes pods resolve auth.localhost to the Kong proxy; see platform-resources/local-dns.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: local-dns
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-30"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/shoplite-lab/shoplite-gitops.git
+    targetRevision: main
+    path: platform-resources/local-dns
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

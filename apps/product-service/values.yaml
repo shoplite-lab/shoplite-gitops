@@ -7,6 +7,8 @@ env:
   REDIS_HOST: valkey # charts/valkey, same namespace
 oidc:
   enabled: true
+observability:
+  enabled: true
 ingress:
   enabled: true
   routes:

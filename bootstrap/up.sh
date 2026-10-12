@@ -38,10 +38,11 @@ cat <<EOF
 Done. Argo CD now syncs everything else from git (takes ~5-10 min the first time).
 
   Watch:     kubectl get applications -n argocd -w
-  UI:        http://argocd.localhost  (works once the kong app is Healthy)
-             or: kubectl port-forward -n argocd svc/argocd-server 8080:80  ->  http://localhost:8080
-  User:      admin
-  Password:  kubectl get secret -n argocd argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d
+  Argo CD:   http://argocd.localhost  (works once the kong app is Healthy)
+             "Log in via Keycloak" as devops1, or break-glass user admin:
+             kubectl get secret -n argocd argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d
+  Grafana:   http://grafana.localhost  (Keycloak login as devops1; break-glass: /login?disableAutoLogin,
+             user admin, password in Secret observability/grafana-secrets key admin-password)
 
   Keycloak:  http://auth.localhost  (admin console user/password: Secret keycloak/keycloak-initial-admin)
   Shop users: alice (customer), bob (admin), devops1 (devops). Password, e.g. alice:

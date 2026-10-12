@@ -1,0 +1,192 @@
+# kube-prometheus-stack: Prometheus (metrics), Alertmanager, Grafana, kube-state-metrics,
+# node-exporter, and the Prometheus Operator (ServiceMonitor / PodMonitor / PrometheusRule CRDs).
+#
+# Metrics reach Prometheus three ways:
+#   - pull:  ServiceMonitor / PodMonitor (Kubernetes, Kong, CNPG, Kafka exporter)
+#   - push:  OTLP from the OTel Collector (Java agent metrics of the services)
+#   - push:  remote write from Tempo's metrics generator (service graph, span metrics)
+#
+# Grafana logs in through Keycloak (client `grafana`). Group devops -> Admin,
+# viewers -> Viewer, anyone else is refused. The local admin user is break-glass only.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kube-prometheus-stack
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-10"
+spec:
+  project: default
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: kube-prometheus-stack
+    targetRevision: 92.3.0
+    helm:
+      releaseName: kps
+      valuesObject:
+        fullnameOverride: kps # -> kps-prometheus, kps-alertmanager, kps-grafana, kps-operator
+
+        # k3s runs these inside the server process, not as scrapeable pods.
+        kubeEtcd: { enabled: false }
+        kubeControllerManager: { enabled: false }
+        kubeScheduler: { enabled: false }
+        kubeProxy: { enabled: false }
+
+        prometheusOperator:
+          admissionWebhooks:
+            certManager:
+              enabled: true # instead of Helm hook Jobs that patch the webhook
+          resources:
+            requests: { cpu: 20m, memory: 64Mi }
+
+        prometheus:
+          prometheusSpec:
+            retention: 2d
+            retentionSize: 2GB
+            storageSpec:
+              volumeClaimTemplate:
+                spec:
+                  accessModes: [ReadWriteOnce]
+                  resources:
+                    requests: { storage: 3Gi }
+            resources:
+              requests: { cpu: 100m, memory: 512Mi }
+              limits: { memory: 1536Mi }
+            # Select every ServiceMonitor/PodMonitor/PrometheusRule in the cluster, not only
+            # the ones labelled with this Helm release.
+            serviceMonitorSelectorNilUsesHelmValues: false
+            podMonitorSelectorNilUsesHelmValues: false
+            ruleSelectorNilUsesHelmValues: false
+            probeSelectorNilUsesHelmValues: false
+            enableOTLPReceiver: true # /api/v1/otlp, fed by the OTel Collector
+            enableRemoteWriteReceiver: true # /api/v1/write, fed by Tempo
+            enableFeatures: [exemplar-storage] # trace IDs attached to samples -> jump to Tempo
+            otlp:
+              # OTel resource attributes are kept in target_info by default; these become
+              # labels on every series so dashboards can filter dev vs prod.
+              promoteResourceAttributes: [k8s.namespace.name, k8s.pod.name]
+            tsdb:
+              outOfOrderTimeWindow: 10m # pushed samples can arrive slightly late
+
+        alertmanager:
+          alertmanagerSpec:
+            resources:
+              requests: { cpu: 10m, memory: 32Mi }
+
+        kube-state-metrics:
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+        prometheus-node-exporter:
+          resources:
+            requests: { cpu: 10m, memory: 16Mi }
+
+        grafana:
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 384Mi }
+          admin:
+            existingSecret: grafana-secrets # bootstrap/secrets.sh
+            userKey: admin-user
+            passwordKey: admin-password
+          envValueFrom:
+            GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET:
+              secretKeyRef: { name: grafana-secrets, key: oidc-client-secret }
+          ingress:
+            enabled: true
+            ingressClassName: kong
+            hosts: [grafana.localhost]
+          grafana.ini:
+            server:
+              root_url: http://grafana.localhost
+            auth:
+              # Logout in Grafana also ends the Keycloak session (single logout).
+              signout_redirect_url: http://auth.localhost/realms/shoplite/protocol/openid-connect/logout?client_id=grafana&post_logout_redirect_uri=http%3A%2F%2Fgrafana.localhost%2Flogin
+            auth.generic_oauth:
+              enabled: true
+              name: Keycloak
+              auto_login: true # straight to Keycloak; break-glass: /login?disableAutoLogin
+              allow_sign_up: true
+              client_id: grafana
+              scopes: openid profile email groups
+              use_pkce: true
+              use_refresh_token: true
+              # The browser goes to the public URL; Grafana itself calls Keycloak in-cluster
+              # (same split as the services' jwk-set-uri).
+              auth_url: http://auth.localhost/realms/shoplite/protocol/openid-connect/auth
+              token_url: http://keycloak-service.keycloak:8080/realms/shoplite/protocol/openid-connect/token
+              api_url: http://keycloak-service.keycloak:8080/realms/shoplite/protocol/openid-connect/userinfo
+              login_attribute_path: preferred_username
+              groups_attribute_path: groups
+              role_attribute_path: contains(groups[*], 'devops') && 'Admin' || contains(groups[*], 'viewers') && 'Viewer'
+              role_attribute_strict: true # no matching group -> login refused
+          sidecar:
+            datasources:
+              exemplarTraceIdDestinations:
+                datasourceUid: tempo
+                traceIdLabelName: trace_id
+          # $$ = a literal $ (Grafana expands $VAR in provisioning files).
+          additionalDataSources:
+            - name: Loki
+              uid: loki
+              type: loki
+              url: http://loki.observability:3100
+              jsonData:
+                derivedFields:
+                  - name: trace_id
+                    matcherType: label # structured metadata set by Alloy
+                    matcherRegex: trace_id
+                    datasourceUid: tempo
+                    url: "$${__value.raw}"
+                    urlDisplayLabel: View trace
+            - name: Tempo
+              uid: tempo
+              type: tempo
+              url: http://tempo.observability:3200
+              jsonData:
+                serviceMap: { datasourceUid: prometheus }
+                nodeGraph: { enabled: true }
+                tracesToLogsV2:
+                  datasourceUid: loki
+                  filterByTraceID: true
+                  spanStartTimeShift: -5m
+                  spanEndTimeShift: 5m
+                  tags:
+                    - { key: k8s.namespace.name, value: namespace }
+                    - { key: k8s.pod.name, value: pod }
+                tracesToMetrics:
+                  datasourceUid: prometheus
+          # Community dashboards, downloaded from grafana.com when Grafana starts.
+          # Our own dashboards are ConfigMaps in platform-resources/observability.
+          dashboardProviders:
+            dashboardproviders.yaml:
+              apiVersion: 1
+              providers:
+                - name: grafana-com
+                  folder: Community
+                  type: file
+                  options:
+                    path: /var/lib/grafana/dashboards/grafana-com
+          dashboards:
+            grafana-com:
+              kong:
+                gnetId: 7424
+                revision: 11
+                datasource: [{ name: DS_PROMETHEUS, value: prometheus }]
+              cloudnative-pg:
+                gnetId: 20417
+                revision: 4
+                datasource: [{ name: DS_PROMETHEUS, value: prometheus }]
+              kafka-exporter:
+                gnetId: 7589
+                revision: 5
+                datasource: [{ name: DS_PROMETHEUS_WH211, value: prometheus }]
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true # the Prometheus Operator CRDs are too big for client-side apply

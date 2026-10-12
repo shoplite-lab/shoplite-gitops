@@ -1,0 +1,68 @@
+# Loki: log storage, queried from Grafana with LogQL. Logs arrive from Alloy (alloy.yaml).
+# Monolithic mode (one pod, local disk): fine for a laptop; Phase 6 could move chunks to GCS.
+# The OSS chart lives in grafana-community (grafana/loki is now the enterprise one).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: loki
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-10"
+spec:
+  project: default
+  source:
+    repoURL: https://grafana-community.github.io/helm-charts
+    chart: loki
+    targetRevision: 18.15.1
+    helm:
+      releaseName: loki
+      valuesObject:
+        fullnameOverride: loki # -> Service loki.observability:3100
+        deploymentMode: Monolithic
+        loki:
+          auth_enabled: false # single tenant
+          commonConfig:
+            replication_factor: 1
+          storage:
+            type: filesystem
+          schemaConfig:
+            configs:
+              - from: "2024-04-01"
+                store: tsdb
+                object_store: filesystem
+                schema: v13
+                index: { prefix: index_, period: 24h }
+          limits_config:
+            retention_period: 72h
+          compactor:
+            retention_enabled: true # the compactor deletes chunks older than retention_period
+            delete_request_store: filesystem
+          analytics:
+            reporting_enabled: false
+        singleBinary:
+          replicas: 1
+          persistence:
+            size: 2Gi
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 512Mi }
+        # Components of the other deployment modes: none.
+        read: { replicas: 0 }
+        write: { replicas: 0 }
+        backend: { replicas: 0 }
+        # Extras for big installs, off on a laptop: nginx gateway, memcached caches,
+        # the canary that writes test logs, the Helm test pod.
+        gateway: { enabled: false }
+        resultsCache: { enabled: false }
+        chunksCache: { enabled: false }
+        lokiCanary: { enabled: false }
+        test: { enabled: false }
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

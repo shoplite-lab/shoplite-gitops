@@ -1,0 +1,48 @@
+# Pull-based scrape targets. Prometheus picks up every PodMonitor in the cluster
+# (podMonitorSelectorNilUsesHelmValues: false in kube-prometheus-stack).
+
+# Kong: the global `prometheus` plugin (platform-resources/kong) exposes request, latency
+# and upstream metrics on the gateway's status port.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: kong
+spec:
+  namespaceSelector:
+    matchNames: [kong]
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: kong
+      app.kubernetes.io/name: gateway
+  podMetricsEndpoints:
+    - port: status
+      path: /metrics
+---
+# Every CloudNativePG instance, whatever its namespace (shop-dev, shop-prod, keycloak).
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: cnpg
+spec:
+  namespaceSelector:
+    any: true
+  selector:
+    matchLabels:
+      cnpg.io/podRole: instance
+  podMetricsEndpoints:
+    - port: metrics
+---
+# Kafka Exporter (enabled in the Kafka resource): consumer group lag per topic/partition.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: kafka-exporter
+spec:
+  namespaceSelector:
+    matchNames: [kafka]
+  selector:
+    matchLabels:
+      strimzi.io/name: shoplite-kafka-exporter
+  podMetricsEndpoints:
+    - port: tcp-prometheus
+      path: /metrics

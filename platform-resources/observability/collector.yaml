@@ -1,0 +1,47 @@
+# The OTel Collector: one OTLP endpoint for every service and for Kong, fanning out to
+# the backends. Apps never know where traces/metrics are stored; swapping Tempo or
+# Prometheus for something else only touches this file.
+#
+#   otel-collector.observability:4317 (gRPC) / :4318 (HTTP)
+#     traces  -> Tempo
+#     metrics -> Prometheus (native OTLP endpoint)
+#   Logs do not go through here: services write JSON to stdout and Alloy ships it to Loki.
+apiVersion: opentelemetry.io/v1beta1
+kind: OpenTelemetryCollector
+metadata:
+  name: otel # -> Service otel-collector
+spec:
+  mode: deployment
+  replicas: 1
+  resources:
+    requests: { cpu: 20m, memory: 64Mi }
+    limits: { memory: 256Mi }
+  config:
+    receivers:
+      otlp:
+        protocols:
+          grpc: { endpoint: 0.0.0.0:4317 }
+          http: { endpoint: 0.0.0.0:4318 }
+    processors:
+      # Refuse data before the pod runs out of memory (backpressure to the senders).
+      memory_limiter:
+        check_interval: 1s
+        limit_percentage: 80
+        spike_limit_percentage: 25
+      batch: {}
+    exporters:
+      otlp_grpc/tempo:
+        endpoint: tempo.observability:4317
+        tls: { insecure: true }
+      otlp_http/prometheus:
+        endpoint: http://kps-prometheus.observability:9090/api/v1/otlp
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [otlp_grpc/tempo]
+        metrics:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [otlp_http/prometheus]

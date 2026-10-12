@@ -1,0 +1,24 @@
+# Our observability config on top of the charts: OTel Collector + Java auto-instrumentation,
+# scrape targets (PodMonitor), alert rules and dashboards. Wave 0: needs the CRDs of the
+# operators in wave -10, and must exist before the services (wave 10) start, or their pods
+# would boot without the Java agent.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: observability
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/shoplite-lab/shoplite-gitops.git
+    targetRevision: main
+    path: platform-resources/observability
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
