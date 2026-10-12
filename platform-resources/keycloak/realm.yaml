@@ -1,0 +1,140 @@
+# Realm `shoplite` as code - applied by keycloak-config-cli (realm-import-job.yaml).
+# Edit here, push, and Argo CD re-runs the import. Changes made in the admin console
+# are overwritten on the next run, like any other GitOps drift.
+#
+# $(env:NAME) values come from Secret keycloak/realm-secrets, never from git.
+#
+# One realm serves both shop-dev and shop-prod (one issuer, one Kong credential) to keep
+# the demo small; a real setup would give prod its own realm or its own Keycloak.
+realm: shoplite
+enabled: true
+displayName: ShopLite
+sslRequired: external # HTTPS required except from private IPs (local cluster is all private)
+registrationAllowed: true
+loginWithEmailAllowed: true
+rememberMe: true
+accessTokenLifespan: 300 # 5 min; the frontend refreshes silently
+ssoSessionIdleTimeout: 1800
+
+roles:
+  realm:
+    - name: customer
+      description: Normal shopper
+    - name: admin
+      description: Can manage products
+    - name: stock-writer
+      description: "Service role: reserve stock (order-service service account)"
+
+defaultRole:
+  name: default-roles-shoplite
+  composite: true
+  composites:
+    realm: [offline_access, uma_authorization, customer]
+
+groups:
+  - name: devops # -> Argo CD admin + Grafana Admin (Phase 5)
+  - name: viewers # -> read-only
+
+clientScopes:
+  # Adds a `groups` claim (group names) to tokens of every client that requests it.
+  - name: groups
+    protocol: openid-connect
+    attributes:
+      include.in.token.scope: "true"
+    protocolMappers:
+      - name: groups
+        protocol: openid-connect
+        protocolMapper: oidc-group-membership-mapper
+        config:
+          claim.name: groups
+          full.path: "false"
+          id.token.claim: "true"
+          access.token.claim: "true"
+          userinfo.token.claim: "true"
+
+clients:
+  # Browser app: public client (no secret can be kept in a browser) + PKCE.
+  - clientId: shop-frontend
+    name: ShopLite Web
+    publicClient: true
+    standardFlowEnabled: true
+    # Password grant only so the README can show curl examples; disable for a real app.
+    directAccessGrantsEnabled: true
+    redirectUris:
+      - http://shop.localhost/*
+      - http://dev.shop.localhost/*
+      - http://localhost:5173/*
+    webOrigins: ["+"] # = origins of the redirect URIs
+    attributes:
+      pkce.code.challenge.method: S256
+      post.logout.redirect.uris: "+"
+    defaultClientScopes: [web-origins, acr, profile, roles, basic, email, groups]
+
+  # Machine client: order-service gets its own token (client credentials) to call
+  # product-service's internal stock endpoint.
+  - clientId: order-service
+    name: Order Service (machine)
+    publicClient: false
+    secret: $(env:ORDER_SERVICE_CLIENT_SECRET)
+    standardFlowEnabled: false
+    directAccessGrantsEnabled: false
+    serviceAccountsEnabled: true
+
+users:
+  - username: alice
+    enabled: true
+    email: alice@shoplite.local
+    emailVerified: true
+    firstName: Alice
+    lastName: Customer
+    credentials:
+      - { type: password, value: $(env:ALICE_PASSWORD), temporary: false }
+    realmRoles: [default-roles-shoplite]
+  - username: bob
+    enabled: true
+    email: bob@shoplite.local
+    emailVerified: true
+    firstName: Bob
+    lastName: Admin
+    credentials:
+      - { type: password, value: $(env:BOB_PASSWORD), temporary: false }
+    realmRoles: [default-roles-shoplite, admin]
+  - username: devops1
+    enabled: true
+    email: devops1@shoplite.local
+    emailVerified: true
+    firstName: Dev
+    lastName: Ops
+    credentials:
+      - { type: password, value: $(env:DEVOPS1_PASSWORD), temporary: false }
+    realmRoles: [default-roles-shoplite]
+    groups: [devops]
+  - username: service-account-order-service
+    enabled: true
+    serviceAccountClientId: order-service
+    realmRoles: [default-roles-shoplite, stock-writer]
+
+components:
+  org.keycloak.keys.KeyProvider:
+    # Signing key from realm-secrets. Its public half is Kong's jwt credential
+    # (kong/keycloak-jwt), so both are generated together by bootstrap/secrets.sh.
+    - name: rsa-shoplite
+      providerId: rsa
+      subComponents: {}
+      config:
+        priority: ["200"]
+        enabled: ["true"]
+        active: ["true"]
+        algorithm: [RS256]
+        privateKey: [$(env:REALM_RSA_PRIVATE_KEY)]
+    - name: hmac-generated
+      providerId: hmac-generated
+      subComponents: {}
+      config:
+        priority: ["100"]
+        algorithm: [HS512]
+    - name: aes-generated
+      providerId: aes-generated
+      subComponents: {}
+      config:
+        priority: ["100"]

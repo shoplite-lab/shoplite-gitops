@@ -3,6 +3,11 @@ postgres:
   enabled: true
   database: users
   owner: users_app
+oidc:
+  enabled: true
 ingress:
   enabled: true
-  paths: [/api/users]
+  routes:
+    - name: api
+      paths: [/api/users]
+      plugins: [jwt-keycloak]

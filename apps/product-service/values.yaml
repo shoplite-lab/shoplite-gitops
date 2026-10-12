@@ -5,6 +5,17 @@ postgres:
   owner: products_app
 env:
   REDIS_HOST: valkey # charts/valkey, same namespace
+oidc:
+  enabled: true
 ingress:
   enabled: true
-  paths: [/api/products]
+  routes:
+    # Anyone may browse the catalog; changing it needs a token (and role admin, checked
+    # by the service). Same path, split by method, so Kong only demands a JWT for writes.
+    - name: read
+      paths: [/api/products]
+      methods: [GET, HEAD, OPTIONS]
+    - name: write
+      paths: [/api/products]
+      methods: [POST, PUT, PATCH, DELETE]
+      plugins: [jwt-keycloak]

@@ -1,0 +1,13 @@
+# Every token from the `shoplite` realm maps to this one consumer: the jwt plugin finds
+# the credential whose `key` equals the token's iss claim and checks the signature with
+# its rsa_public_key. The credential Secret is created by bootstrap/secrets.sh (local)
+# or External Secrets (GKE) - it is generated together with the realm's private key.
+apiVersion: configuration.konghq.com/v1
+kind: KongConsumer
+metadata:
+  name: keycloak-shoplite
+  annotations:
+    kubernetes.io/ingress.class: kong
+username: keycloak-shoplite
+credentials:
+  - keycloak-jwt

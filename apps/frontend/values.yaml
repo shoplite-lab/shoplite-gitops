@@ -8,9 +8,11 @@ resources:
   requests: { cpu: 10m, memory: 16Mi }
   limits: { memory: 64Mi }
 env:
-  OIDC_AUTHORITY: http://auth.localhost/realms/shoplite # Keycloak arrives in Phase 4
+  OIDC_AUTHORITY: http://auth.localhost/realms/shoplite
   OIDC_CLIENT_ID: shop-frontend
   API_BASE_URL: "" # same origin: Kong serves the app and /api/* on one host
 ingress:
   enabled: true
-  paths: [/]
+  routes:
+    - name: web
+      paths: [/]

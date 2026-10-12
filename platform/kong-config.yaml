@@ -1,0 +1,23 @@
+# Gateway policy shared by every environment: plugins (KongClusterPlugin) and the
+# Keycloak consumer whose credential verifies JWTs. Services opt in per route with
+# the `konghq.com/plugins` annotation (charts/microservice ingress.routes[].plugins).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kong-config
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/shoplite-lab/shoplite-gitops.git
+    targetRevision: main
+    path: platform-resources/kong
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kong
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

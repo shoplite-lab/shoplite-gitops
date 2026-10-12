@@ -21,13 +21,16 @@ else
   k3d cluster create --config bootstrap/k3d-cluster.yaml
 fi
 
-echo "== 2. Argo CD (helm install once; afterwards Argo CD upgrades itself from git)"
+echo "== 2. Secrets that are not in git"
+bash bootstrap/secrets.sh
+
+echo "== 3. Argo CD (helm install once; afterwards Argo CD upgrades itself from git)"
 helm repo add argo https://argoproj.github.io/argo-helm >/dev/null 2>&1 || true
 helm upgrade --install argocd argo/argo-cd --version "$ARGOCD_CHART_VERSION" \
   --namespace argocd --create-namespace \
   --values bootstrap/argocd-values.yaml --wait --timeout 10m
 
-echo "== 3. Root app"
+echo "== 4. Root app"
 kubectl apply -f bootstrap/root-app.yaml
 
 cat <<EOF
@@ -39,4 +42,8 @@ Done. Argo CD now syncs everything else from git (takes ~5-10 min the first time
              or: kubectl port-forward -n argocd svc/argocd-server 8080:80  ->  http://localhost:8080
   User:      admin
   Password:  kubectl get secret -n argocd argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d
+
+  Keycloak:  http://auth.localhost  (admin console user/password: Secret keycloak/keycloak-initial-admin)
+  Shop users: alice (customer), bob (admin), devops1 (devops). Password, e.g. alice:
+             kubectl get secret -n keycloak realm-secrets -o jsonpath='{.data.ALICE_PASSWORD}' | base64 -d
 EOF

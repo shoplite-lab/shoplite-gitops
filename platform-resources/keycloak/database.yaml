@@ -1,0 +1,23 @@
+# Keycloak's own PostgreSQL (CloudNativePG), same pattern as every service's database.
+# The operator generates the Secret keycloak-db-app (username/password) read by keycloak.yaml.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: keycloak-db
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1" # DB first: Keycloak cannot start without it
+spec:
+  instances: 1
+  storage:
+    size: 1Gi
+  bootstrap:
+    initdb:
+      database: keycloak
+      owner: keycloak
+  postgresql:
+    parameters:
+      shared_buffers: 64MB
+      max_connections: "50"
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { memory: 256Mi }

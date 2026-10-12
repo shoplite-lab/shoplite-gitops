@@ -39,8 +39,20 @@ ingress:
   enabled: false
   className: kong
   host: ""
-  paths: [] # e.g. [/api/users]
-  annotations: {}
+  annotations: {} # added to every route
+  # One entry = one Kong route (Ingress <release>-<name>):
+  #   paths:   URL prefixes, e.g. [/api/users]
+  #   plugins: KongClusterPlugins from platform-resources/kong, e.g. [jwt-keycloak]
+  #   methods: limit the route to these HTTP methods (default: all)
+  routes: []
+
+# Spring Security resource server. Tokens carry iss = the PUBLIC Keycloak URL (what the
+# browser uses), but the signing keys are fetched straight from the Keycloak Service:
+# pods never resolve auth.localhost, and token checks do not depend on Kong being up.
+oidc:
+  enabled: false
+  issuerUri: http://auth.localhost/realms/shoplite
+  jwkSetUri: http://keycloak-service.keycloak:8080/realms/shoplite/protocol/openid-connect/certs
 
 # Database-per-service: a dedicated CloudNativePG cluster owned by this release.
 # The operator generates the credentials Secret <release>-db-app; the Deployment reads

@@ -1,0 +1,44 @@
+# The operator turns this into a StatefulSet + Service keycloak-service:8080, and generates
+# the bootstrap admin in Secret keycloak-initial-admin (no admin password in git).
+apiVersion: k8s.keycloak.org/v2beta1
+kind: Keycloak
+metadata:
+  name: keycloak
+spec:
+  instances: 1
+  db:
+    vendor: postgres
+    host: keycloak-db-rw
+    database: keycloak
+    usernameSecret: { name: keycloak-db-app, key: username }
+    passwordSecret: { name: keycloak-db-app, key: password }
+  # Public URL = through Kong. Keycloak puts it in the token "iss" claim, and every
+  # verifier (browser, Kong, services) compares against exactly this string.
+  hostname:
+    hostname: http://auth.localhost
+  http:
+    httpEnabled: true # TLS terminates at the edge (Kong) - on GKE with cert-manager
+  proxy:
+    headers: xforwarded # Kong sets X-Forwarded-*; gives Keycloak the real client IP
+  ingress:
+    enabled: false # own Ingress below, for Kong
+  resources:
+    requests: { cpu: 100m, memory: 512Mi }
+    limits: { memory: 1Gi }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: keycloak
+spec:
+  ingressClassName: kong
+  rules:
+    - host: auth.localhost
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: keycloak-service
+                port: { number: 8080 }

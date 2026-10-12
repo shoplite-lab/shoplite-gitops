@@ -1,0 +1,62 @@
+# Kong plugins as cluster-scoped resources, so Ingresses in shop-dev and shop-prod can
+# both reference them by name. KIC needs the ingress-class annotation to pick them up.
+#
+# Global (label global: "true") = applied to every route on the gateway.
+apiVersion: configuration.konghq.com/v1
+kind: KongClusterPlugin
+metadata:
+  name: correlation-id
+  annotations:
+    kubernetes.io/ingress.class: kong
+  labels:
+    global: "true"
+plugin: correlation-id
+config:
+  header_name: X-Request-ID
+  generator: uuid
+  echo_downstream: true
+---
+# Production traffic is same-origin (Kong serves the app and /api/* on one host), so
+# CORS only matters for `npm run dev` (Vite on :5173) talking to the cluster's API.
+apiVersion: configuration.konghq.com/v1
+kind: KongClusterPlugin
+metadata:
+  name: cors
+  annotations:
+    kubernetes.io/ingress.class: kong
+  labels:
+    global: "true"
+plugin: cors
+config:
+  origins: ["http://localhost:5173"]
+  credentials: true
+  headers: [Authorization, Content-Type, X-Request-ID]
+---
+# Opt-in per route. Verifies the token at the edge (RS256 signature + exp) before the
+# request reaches a pod; services verify again and check roles (defense in depth).
+# Kong OSS has no OIDC plugin, so the realm public key is a static credential
+# (kong/keycloak-jwt, see consumer.yaml): rotating the realm key means updating it.
+apiVersion: configuration.konghq.com/v1
+kind: KongClusterPlugin
+metadata:
+  name: jwt-keycloak
+  annotations:
+    kubernetes.io/ingress.class: kong
+plugin: jwt
+config:
+  key_claim_name: iss
+  claims_to_verify: [exp]
+  uri_param_names: [] # token only from the Authorization header, never ?jwt= in URLs/logs
+  cookie_names: []
+---
+apiVersion: configuration.konghq.com/v1
+kind: KongClusterPlugin
+metadata:
+  name: rate-limit-orders
+  annotations:
+    kubernetes.io/ingress.class: kong
+plugin: rate-limiting
+config:
+  minute: 20
+  policy: local # counters in each Kong pod's memory; use redis policy with several replicas
+  limit_by: ip

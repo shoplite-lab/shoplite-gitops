@@ -1,0 +1,24 @@
+# Keycloak instance + its database + the `shoplite` realm, all from git:
+#   keycloak-db (CNPG) -> Keycloak CR -> Ingress auth.localhost -> realm Job (PostSync hook)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: keycloak
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/shoplite-lab/shoplite-gitops.git
+    targetRevision: main
+    path: platform-resources/keycloak
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: keycloak
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

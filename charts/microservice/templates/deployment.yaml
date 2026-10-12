@@ -55,6 +55,13 @@ spec:
               valueFrom:
                 secretKeyRef: { name: {{ .Release.Name }}-db-app, key: password }
             {{- end }}
+            {{- if .Values.oidc.enabled }}
+            - name: OIDC_ISSUER_URI # validated against the token's iss claim
+              value: {{ .Values.oidc.issuerUri | quote }}
+            # Setting jwk-set-uri makes Spring skip issuer discovery and fetch keys from here.
+            - name: SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWKSETURI
+              value: {{ .Values.oidc.jwkSetUri | quote }}
+            {{- end }}
             {{- range $name, $ref := .Values.secretEnv }}
             - name: {{ $name }}
               valueFrom:

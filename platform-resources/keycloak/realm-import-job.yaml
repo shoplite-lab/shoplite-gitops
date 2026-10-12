@@ -1,0 +1,69 @@
+# Realm-as-code: keycloak-config-cli makes the realm match realm.yaml through the admin
+# REST API - creates what is missing, updates what changed. (The operator's own
+# KeycloakRealmImport only imports once and never updates, so it is not used.)
+#
+# PostSync hook: runs after every sync of this app, i.e. whenever realm.yaml changes in
+# git, and only once Keycloak is Healthy. BeforeHookCreation keeps the last run's Job
+# (and logs) until the next one.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: realm-import
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: keycloak-config-cli
+          image: docker.io/adorsys/keycloak-config-cli:6.5.1-26.5.5
+          env:
+            - name: KEYCLOAK_URL
+              value: http://keycloak-service:8080
+            - name: KEYCLOAK_USER
+              valueFrom:
+                secretKeyRef: { name: keycloak-initial-admin, key: username }
+            - name: KEYCLOAK_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: keycloak-initial-admin, key: password }
+            - name: KEYCLOAK_AVAILABILITYCHECK_ENABLED
+              value: "true"
+            - name: KEYCLOAK_AVAILABILITYCHECK_TIMEOUT
+              value: 300s
+            - name: IMPORT_FILES_LOCATIONS
+              value: file:/config/*
+            # Fills $(env:NAME) placeholders in realm.yaml from realm-secrets below.
+            - name: IMPORT_VARSUBSTITUTION_ENABLED
+              value: "true"
+            - name: JAVA_OPTS
+              value: -XX:MaxRAMPercentage=75 -Djava.io.tmpdir=/tmp
+          envFrom:
+            - secretRef:
+                name: realm-secrets # bootstrap/secrets.sh (local) / External Secrets (GKE)
+          resources:
+            requests: { cpu: 50m, memory: 256Mi }
+            limits: { memory: 512Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: realm
+              mountPath: /config
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: realm
+          configMap:
+            name: realm-shoplite
+        - name: tmp
+          emptyDir: {}

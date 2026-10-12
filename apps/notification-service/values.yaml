@@ -5,6 +5,11 @@ postgres:
   owner: notifications_app
 env:
   KAFKA_BOOTSTRAP_SERVERS: shoplite-kafka-bootstrap.kafka:9092
+oidc:
+  enabled: true
 ingress:
   enabled: true
-  paths: [/api/notifications]
+  routes:
+    - name: api
+      paths: [/api/notifications]
+      plugins: [jwt-keycloak]

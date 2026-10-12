@@ -1,23 +1,29 @@
 {{- if .Values.ingress.enabled }}
-# North-south traffic: Kong routes <host><path> to this Service.
-# Each service declares only its own paths; Kong merges all Ingresses into one config.
+{{- range .Values.ingress.routes }}
+# North-south traffic: Kong routes <host><paths> to this Service. One Ingress per route,
+# because Kong options (plugins, methods) are per Ingress. Kong merges every Ingress
+# from every namespace into one gateway config.
+---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ .Release.Name }}
+  name: {{ $.Release.Name }}-{{ required "ingress.routes[].name is required" .name }}
   labels:
-    {{- include "microservice.labels" . | nindent 4 }}
-  {{- with .Values.ingress.annotations }}
+    {{- include "microservice.labels" $ | nindent 4 }}
+  {{- $annotations := deepCopy $.Values.ingress.annotations }}
+  {{- with .plugins }}{{ $_ := set $annotations "konghq.com/plugins" (join "," .) }}{{ end }}
+  {{- with .methods }}{{ $_ := set $annotations "konghq.com/methods" (join "," .) }}{{ end }}
+  {{- with $annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:
-  ingressClassName: {{ .Values.ingress.className }}
+  ingressClassName: {{ $.Values.ingress.className }}
   rules:
-    - host: {{ required "ingress.host is required" .Values.ingress.host | quote }}
+    - host: {{ required "ingress.host is required" $.Values.ingress.host | quote }}
       http:
         paths:
-          {{- range .Values.ingress.paths }}
+          {{- range .paths }}
           - path: {{ . }}
             pathType: Prefix
             backend:
@@ -25,4 +31,5 @@ spec:
                 name: {{ $.Release.Name }}
                 port: { name: http }
           {{- end }}
+{{- end }}
 {{- end }}
