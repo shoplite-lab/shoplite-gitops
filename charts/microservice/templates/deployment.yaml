@@ -38,9 +38,16 @@ spec:
               containerPort: {{ .Values.containerPort }}
           env:
             {{- if .Values.postgres.enabled }}
-            - name: DB_URL
+            # Build the URL from host + dbname instead of the Secret's ready-made `jdbc-uri`:
+            # that one embeds ?password=..., and Hibernate logs the JDBC URL at start-up.
+            - name: DB_HOST
               valueFrom:
-                secretKeyRef: { name: {{ .Release.Name }}-db-app, key: jdbc-uri }
+                secretKeyRef: { name: {{ .Release.Name }}-db-app, key: host }
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef: { name: {{ .Release.Name }}-db-app, key: dbname }
+            - name: DB_URL
+              value: jdbc:postgresql://$(DB_HOST):5432/$(DB_NAME)
             - name: DB_USER
               valueFrom:
                 secretKeyRef: { name: {{ .Release.Name }}-db-app, key: username }
