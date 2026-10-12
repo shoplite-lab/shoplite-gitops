@@ -9,7 +9,9 @@ metadata:
     {{- include "microservice.labels" . | nindent 4 }}
   annotations:
     # Database before the app; the app would only crash-loop until the DB is up.
-    argocd.argoproj.io/sync-wave: "-1"
+    # Paused: the reverse. Postgres shuts down only once its clients disconnect (up to
+    # 30 min), so the app must be scaled to 0 first or both wait for each other.
+    argocd.argoproj.io/sync-wave: {{ if .Values.paused }}"1"{{ else }}"-1"{{ end }}
     # paused: CNPG stops the Postgres pods but keeps the PVC, so data survives.
     cnpg.io/hibernation: {{ if .Values.paused }}"on"{{ else }}"off"{{ end }}
 spec:
