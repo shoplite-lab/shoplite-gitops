@@ -37,7 +37,7 @@ spec:
         shoplite/env: "{{ .env }}"
         shoplite/component: "{{ .component }}"
     spec:
-      project: shop
+      project: "shop-{{ .env }}"
       source:
         repoURL: https://github.com/shoplite-lab/shoplite-gitops.git
         targetRevision: main

@@ -41,7 +41,7 @@ root (bootstrap/root-app.yaml — apply tay đúng 1 lần)
     ├── cnpg-operator     wave -10  operator PostgreSQL
     ├── strimzi-operator  wave -10  operator Kafka
     ├── kafka             wave   0  platform-resources/kafka: Kafka KRaft 1 node + KafkaTopic
-    └── shop              wave  10  AppProject "shop" + apps/appset.yaml
+    └── shop              wave  10  AppProject "shop-dev", "shop-prod" + apps/appset.yaml
         └── ApplicationSet "shop" = {dev, prod} × {valkey, user, product, order, notification, frontend}
             └── user-service-dev, user-service-prod, ... (12 Application)
 ```
@@ -58,7 +58,7 @@ Sync wave chỉ có tác dụng giữa các Application con nhờ health check `
 | Kafka | 1 cluster chung, topic `dev.*` / `prod.*`, consumer group theo env | Kafka tốn RAM nhất; tách bằng tên topic là cách multi-tenant phổ biến |
 | Valkey | 1 instance mỗi namespace, chart tự viết, không persistence | Cache mất thì chỉ miss; tránh Bitnami (đã ngừng image miễn phí) |
 | Bảo mật pod | non-root, read-only root FS, drop ALL capabilities, seccomp | Đạt chuẩn Pod Security "restricted" |
-| AppProject `shop` | chỉ deploy từ repo này vào `shop-dev` / `shop-prod` | App lỗi cấu hình không thể ghi vào namespace khác |
+| AppProject `shop-dev`, `shop-prod` | Mỗi env 1 project, chỉ deploy từ repo này vào đúng namespace của nó | App lỗi cấu hình không ghi được sang env khác. RBAC viết theo project (xem Phase 5) |
 | TLS | chưa (HTTP trên `*.localhost`) | cert-manager + Let's Encrypt cần domain thật → Phase 6 |
 
 ## Keycloak + Kong JWT (Phase 4)
@@ -66,7 +66,7 @@ Sync wave chỉ có tác dụng giữa các Application con nhờ health check `
 | URL | Gì |
 |---|---|
 | http://auth.localhost | Keycloak. Admin console: user/password trong Secret `keycloak/keycloak-initial-admin` |
-| http://dev.shop.localhost, http://shop.localhost | Bấm **Login with Keycloak**. User: `alice` (customer), `bob` (admin), `devops1` (group devops) |
+| http://dev.shop.localhost, http://shop.localhost | Bấm **Login with Keycloak**. User: `alice` (customer), `bob` (admin), `devops1` (group devops), `viewer1` (group viewers) |
 
 Mật khẩu user demo được sinh ngẫu nhiên lúc bootstrap, không nằm trong git:
 
@@ -120,7 +120,7 @@ Sửa realm = sửa `platform-resources/keycloak/realm.yaml` rồi push. Argo CD
 | URL | Gì |
 |---|---|
 | http://grafana.localhost | Grafana, tự chuyển sang Keycloak. `devops1` → Admin, group `viewers` → Viewer, user khác bị từ chối. Admin dự phòng: `/login?disableAutoLogin`, user `admin`, password trong Secret `observability/grafana-secrets` |
-| http://argocd.localhost | Bấm **Log in via Keycloak**. Group `devops` → `role:admin`, `viewers` → `role:readonly`, user khác vào được nhưng không thấy app nào |
+| http://argocd.localhost | Bấm **Log in via Keycloak**. `devops` (devops1): admin, nhưng với app prod chỉ được xem, không Sync/sửa/xoá/restart, prod chỉ đổi qua PR. `viewers` (viewer1): chỉ xem app dev. User khác vào được nhưng không thấy app nào |
 
 Đăng nhập Shop bằng `devops1` trước, sau đó mở Grafana và Argo CD sẽ vào thẳng, không hỏi lại password (cùng session Keycloak). Logout ở Grafana cũng kết thúc session Keycloak (single logout).
 

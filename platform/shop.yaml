@@ -1,26 +1,45 @@
 # Business apps. Last wave: operators, Kafka and Kong are Healthy by now.
 #
-# AppProject "shop" is the guard rail: apps in it may only come from this repo and only
-# land in shop-dev / shop-prod. A typo in a values file cannot touch kube-system or argocd.
+# One AppProject per environment, two guard rails:
+# - apps may only come from this repo and only land in their own namespace: a typo in
+#   values-dev.yaml cannot touch shop-prod (or kube-system, argocd).
+# - RBAC is written per project (bootstrap/argocd-values.yaml): devops may click Sync in
+#   shop-dev but not in shop-prod, viewers only see shop-dev.
 apiVersion: argoproj.io/v1alpha1
 kind: AppProject
 metadata:
-  name: shop
+  name: shop-dev
   namespace: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "10"
 spec:
-  description: ShopLite services (dev + prod)
+  description: ShopLite services, dev
   sourceRepos:
     - https://github.com/shoplite-lab/shoplite-gitops.git
   destinations:
     - server: https://kubernetes.default.svc
       namespace: shop-dev
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace # for CreateNamespace=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: shop-prod
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  description: ShopLite services, prod. Changes only through a PR to values-prod.yaml.
+  sourceRepos:
+    - https://github.com/shoplite-lab/shoplite-gitops.git
+  destinations:
     - server: https://kubernetes.default.svc
       namespace: shop-prod
   clusterResourceWhitelist:
     - group: ""
-      kind: Namespace # for CreateNamespace=true
+      kind: Namespace
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application

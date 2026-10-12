@@ -64,6 +64,7 @@ kubectl create secret generic realm-secrets -n keycloak \
   --from-literal=ALICE_PASSWORD="$(keep_or_new keycloak realm-secrets ALICE_PASSWORD 6)" \
   --from-literal=BOB_PASSWORD="$(keep_or_new keycloak realm-secrets BOB_PASSWORD 6)" \
   --from-literal=DEVOPS1_PASSWORD="$(keep_or_new keycloak realm-secrets DEVOPS1_PASSWORD 6)" \
+  --from-literal=VIEWER1_PASSWORD="$(keep_or_new keycloak realm-secrets VIEWER1_PASSWORD 6)" \
   --dry-run=client -o yaml | apply
 
 # Kong jwt credential: the plugin picks the credential whose `key` equals the token's iss claim.

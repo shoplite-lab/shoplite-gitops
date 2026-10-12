@@ -140,6 +140,16 @@ users:
       - { type: password, value: $(env:DEVOPS1_PASSWORD), temporary: false }
     realmRoles: [default-roles-shoplite]
     groups: [devops]
+  - username: viewer1
+    enabled: true
+    email: viewer1@shoplite.local
+    emailVerified: true
+    firstName: View
+    lastName: Only
+    credentials:
+      - { type: password, value: $(env:VIEWER1_PASSWORD), temporary: false }
+    realmRoles: [default-roles-shoplite]
+    groups: [viewers]
   - username: service-account-order-service
     enabled: true
     serviceAccountClientId: order-service

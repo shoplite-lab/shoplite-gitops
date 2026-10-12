@@ -40,12 +40,29 @@ configs:
       return hs
 
   # Keycloak groups (token claim `groups`) -> Argo CD roles. No group = logged in, sees nothing.
+  # Object = <project>/<app>. A deny line beats any allow, including role:admin.
   rbac:
     scopes: "[groups]"
     policy.default: ""
     policy.csv: |
+      # devops: admin, except hands-on changes to prod apps. Prod only changes through a PR
+      # to values-prod.yaml, which auto-sync applies (the controller is not bound by RBAC).
+      # update/* and delete/* cover resources inside the app (Argo CD 3 no longer inherits them).
       g, devops, role:admin
-      g, viewers, role:readonly
+      p, devops, applications, sync, shop-prod/*, deny
+      p, devops, applications, update, shop-prod/*, deny
+      p, devops, applications, update/*, shop-prod/*, deny
+      p, devops, applications, delete, shop-prod/*, deny
+      p, devops, applications, delete/*, shop-prod/*, deny
+      p, devops, applications, override, shop-prod/*, deny
+      p, devops, applications, action/*, shop-prod/*, deny
+      p, devops, exec, create, shop-prod/*, deny
+
+      # viewers: read-only, dev apps only (no prod, no platform).
+      p, role:dev-viewer, applications, get, shop-dev/*, allow
+      p, role:dev-viewer, logs, get, shop-dev/*, allow
+      p, role:dev-viewer, projects, get, shop-dev, allow
+      g, viewers, role:dev-viewer
 
 server:
   ingress:
