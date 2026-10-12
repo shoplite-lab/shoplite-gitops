@@ -7,6 +7,9 @@ metadata:
   namespace: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "-10"
+    # Diff against a server-side dry-run: the API server drops empty `properties: {}` from the
+    # Kafka CRD schema, which a client-side diff reports as permanently OutOfSync.
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
 spec:
   project: default
   source:
