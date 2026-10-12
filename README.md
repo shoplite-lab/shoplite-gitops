@@ -25,7 +25,7 @@ k3d cluster delete shoplite     # xoá hẳn
 
 | URL | Gì |
 |---|---|
-| http://argocd.localhost | Argo CD UI, user `admin`, password: `kubectl get secret -n argocd argocd-initial-admin-secret -o jsonpath='{.data.password}' \| base64 -d` |
+| http://argocd.localhost | Argo CD UI, đăng nhập qua Keycloak (Phase 5). Từ đầu tới lúc app `keycloak` Healthy chưa đăng nhập được, nhưng Argo CD vẫn sync bình thường |
 | http://dev.shop.localhost | Môi trường dev (namespace `shop-dev`) |
 | http://shop.localhost | Môi trường prod (namespace `shop-prod`) |
 
@@ -165,7 +165,7 @@ Dashboard: **ShopLite overview** (RED theo service, JVM heap, Kafka lag, service
 | Chart Loki/Tempo | `grafana-community` | Chart OSS đã chuyển khỏi `grafana/` (giờ `grafana/loki` là bản enterprise) |
 | SSO Grafana | auth URL public, token/userinfo trong cluster | Giống service ở Phase 4: Grafana không cần resolve `auth.localhost` |
 | SSO Argo CD | Rewrite CoreDNS `auth.localhost` → Kong | Argo CD bắt buộc đọc discovery tại `<issuer>/.well-known/...`, không tách URL được. Trên GKE có DNS thật nên bỏ app `local-dns` |
-| Admin password | Grafana: Secret do `secrets.sh` tạo; Argo CD: giữ `admin` làm dự phòng | Chart Grafana tự sinh password mới ở mỗi lần render → Argo CD thấy OutOfSync mãi |
+| Admin password | Grafana: Secret do `secrets.sh` tạo; Argo CD: tắt `admin`, chỉ SSO. Keycloak chết thì bật lại `admin.enabled` trong git | Chart Grafana tự sinh password mới ở mỗi lần render → Argo CD thấy OutOfSync mãi |
 | Webhook cert | cert-manager | Cert tự sinh của chart đổi ở mỗi lần render; Helm hook Job không hợp với Argo CD |
 
 ### Bài học khi triển khai
