@@ -1,11 +1,9 @@
 # image.tag is written by CI (update-gitops) on every merge to main.
 image:
   repository: ghcr.io/shoplite-lab/shoplite-product-service
-  tag: 09a4d4386192ffb4ac5a207a2327d45e3b735784
-
+  tag: a336994dd36e27111b39111486ba556779cd1580
 ingress:
   host: dev.shop.localhost
-
 # Phase 7 load test (scenarios/load-hpa.sh): above 70% of the 50m CPU request, a second
 # pod starts. Kept to 2: every extra JVM costs the laptop ~400MB and a CPU-heavy boot.
 autoscaling:
