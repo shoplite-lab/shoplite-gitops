@@ -1,8 +1,7 @@
 # image.tag is written by CI (update-gitops) on every merge to main.
 image:
   repository: ghcr.io/shoplite-lab/shoplite-order-service
-  tag: 68973bc98d2a2b7f477f2678e36b4ec659689b17
-
+  tag: 63223b02b7cfd97eb309d45d119e4389c77de997
 ingress:
   host: dev.shop.localhost
 env:
