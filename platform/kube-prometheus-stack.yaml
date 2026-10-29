@@ -82,8 +82,10 @@ spec:
 
         grafana:
           resources:
-            requests: { cpu: 50m, memory: 128Mi }
-            limits: { memory: 384Mi }
+            # 384Mi was OOMKilled: Grafana sits near 330Mi right after start, and switching a
+            # dashboard between dev and prod (heavier queries) pushed it over the limit.
+            requests: { cpu: 50m, memory: 256Mi }
+            limits: { memory: 768Mi }
           admin:
             existingSecret: grafana-secrets # bootstrap/secrets.sh
             userKey: admin-user
