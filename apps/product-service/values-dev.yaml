@@ -1,7 +1,7 @@
 # image.tag is written by CI (update-gitops) on every merge to main.
 image:
   repository: ghcr.io/shoplite-lab/shoplite-product-service
-  tag: a336994dd36e27111b39111486ba556779cd1580
+  tag: f73a00b1305a81753b16ee1cb089dcd389a4a98f
 ingress:
   host: dev.shop.localhost
 # Phase 7 load test (scenarios/load-hpa.sh): above 70% of the 50m CPU request, a second
