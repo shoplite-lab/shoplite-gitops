@@ -47,6 +47,10 @@ spec:
           envFrom:
             - secretRef:
                 name: realm-secrets # bootstrap/secrets.sh (local) / External Secrets (GKE)
+            # Public URLs of the apps (redirect URIs in realm.yaml). Per cluster: see the
+            # configMapGenerator in kustomization.yaml and clusters/<name>/keycloak.
+            - configMapRef:
+                name: realm-urls
           resources:
             requests: { cpu: 50m, memory: 256Mi }
             limits: { memory: 512Mi }

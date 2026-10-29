@@ -61,8 +61,16 @@ spec:
             - name: DB_NAME
               valueFrom:
                 secretKeyRef: { name: {{ .Release.Name }}-db-app, key: dbname }
+            {{- if .Values.postgres.external.enabled }}
+            - name: DB_PORT
+              valueFrom:
+                secretKeyRef: { name: {{ .Release.Name }}-db-app, key: port }
+            - name: DB_URL
+              value: jdbc:postgresql://$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode={{ .Values.postgres.external.sslMode }}
+            {{- else }}
             - name: DB_URL
               value: jdbc:postgresql://$(DB_HOST):5432/$(DB_NAME)
+            {{- end }}
             - name: DB_USER
               valueFrom:
                 secretKeyRef: { name: {{ .Release.Name }}-db-app, key: username }

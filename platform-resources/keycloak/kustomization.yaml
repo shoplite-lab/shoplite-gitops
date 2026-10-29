@@ -8,5 +8,14 @@ resources:
 configMapGenerator:
   - name: realm-shoplite
     files: [realm.yaml]
+  # Where each app lives, substituted for $(env:NAME) in realm.yaml. k3d values here;
+  # a cluster overlay (clusters/<name>/keycloak) replaces them.
+  - name: realm-urls
+    literals:
+      - SHOP_PROD_URL=http://shop.localhost
+      - SHOP_DEV_URL=http://dev.shop.localhost
+      - GRAFANA_URL=http://grafana.localhost
+      - ARGOCD_URL=http://argocd.localhost
+      - KAFKA_UI_URL=http://kafka.localhost
 generatorOptions:
   disableNameSuffixHash: true # the Job runs on every sync anyway (PostSync hook)

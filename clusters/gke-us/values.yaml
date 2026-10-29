@@ -1,0 +1,7 @@
+# Helm values for every app (all services, both environments) on the GKE cluster.
+# Loaded after apps/<svc>/values.yaml and values-<env>.yaml. See apps/kustomization.yaml.
+postgres:
+  external:
+    enabled: true # Neon: no CNPG pods, the Secret <release>-db-app comes from Secret Manager
+oidc:
+  issuerUri: https://auth.neststack.site/realms/shoplite

@@ -1,0 +1,142 @@
+# Root of the GKE cluster: the k3d platform (../../platform) plus what GKE changes.
+# Applied by bootstrap/gke-root-app.yaml (path: clusters/gke-us). k3d keeps using platform/ as is.
+#
+# What differs from k3d, and why:
+#   - real domain + HTTPS instead of *.localhost   (patches below, argocd-values.yaml)
+#   - Postgres is external (Neon): no CNPG operator, no keycloak-db        (apps/, keycloak/)
+#   - secrets come from Secret Manager via External Secrets, not bootstrap/secrets.sh (secrets/)
+#   - Loki and Tempo keep their data in GCS buckets (patches below)
+#   - DNS records are created by external-dns (Cloudflare); no CoreDNS rewrite needed
+#
+# Domain: neststack.site (set with `bash scripts/set-domain.sh <new-domain> neststack.site` to change it).
+# Project id: "shoplite-demo-1e7583" (in this directory only).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../platform
+  - platform/external-secrets.yaml
+  - platform/secrets.yaml
+  - platform/external-dns.yaml
+
+patches:
+  # --- not needed on GKE -----------------------------------------------------------------
+  - target: { kind: Application, name: local-dns }
+    patch: |-
+      $patch: delete
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: local-dns
+  - target: { kind: Application, name: cnpg-operator }
+    patch: |-
+      $patch: delete
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: cnpg-operator
+
+  # --- Argo CD: public URL, OIDC issuer, ExternalSecret health -----------------------------
+  - target: { kind: Application, name: argocd }
+    patch: |-
+      - op: add
+        path: /spec/sources/0/helm/valueFiles/-
+        value: $values/clusters/gke-us/argocd-values.yaml
+
+  # --- business apps: same ApplicationSet, GKE values on top -------------------------------
+  - target: { kind: Application, name: shop }
+    patch: |-
+      - op: replace
+        path: /spec/source/path
+        value: clusters/gke-us/apps
+      - op: remove
+        path: /spec/source/directory
+
+  # --- Keycloak: public hostname, external database, realm URLs ----------------------------
+  - target: { kind: Application, name: keycloak }
+    patch: |-
+      - op: replace
+        path: /spec/source/path
+        value: clusters/gke-us/keycloak
+
+  # --- Grafana and Kafka UI: public URLs ---------------------------------------------------
+  - target: { kind: Application, name: kube-prometheus-stack }
+    patch: |-
+      - op: replace
+        path: /spec/source/helm/valuesObject/grafana/ingress/hosts/0
+        value: grafana.neststack.site
+      - op: replace
+        path: /spec/source/helm/valuesObject/grafana/grafana.ini/server/root_url
+        value: https://grafana.neststack.site
+      - op: replace
+        path: /spec/source/helm/valuesObject/grafana/grafana.ini/auth/signout_redirect_url
+        value: https://auth.neststack.site/realms/shoplite/protocol/openid-connect/logout?client_id=grafana&post_logout_redirect_uri=https%3A%2F%2Fgrafana.neststack.site%2Flogin
+      - op: replace
+        path: /spec/source/helm/valuesObject/grafana/grafana.ini/auth.generic_oauth/auth_url
+        value: https://auth.neststack.site/realms/shoplite/protocol/openid-connect/auth
+  - target: { kind: Application, name: kafka-ui }
+    patch: |-
+      - op: replace
+        path: /spec/source/helm/valuesObject/ingress/host
+        value: kafka.neststack.site
+      - op: replace
+        path: /spec/source/helm/valuesObject/yamlApplicationConfig/auth/oauth2/client/keycloak/issuer-uri
+        value: https://auth.neststack.site/realms/shoplite
+
+  # --- Loki and Tempo: chunks and blocks in GCS (Workload Identity, no keys) ---------------
+  - target: { kind: Application, name: loki }
+    patch: |-
+      - op: replace
+        path: /spec/source/helm/valuesObject/loki/storage/type
+        value: gcs
+      - op: add
+        path: /spec/source/helm/valuesObject/loki/storage/bucketNames
+        value: { chunks: shoplite-demo-1e7583-loki, ruler: shoplite-demo-1e7583-loki, admin: shoplite-demo-1e7583-loki }
+      - op: replace
+        path: /spec/source/helm/valuesObject/loki/schemaConfig/configs/0/object_store
+        value: gcs
+      - op: replace
+        path: /spec/source/helm/valuesObject/loki/compactor/delete_request_store
+        value: gcs
+      - op: add
+        path: /spec/source/helm/valuesObject/serviceAccount
+        value:
+          annotations:
+            iam.gke.io/gcp-service-account: shoplite-loki@shoplite-demo-1e7583.iam.gserviceaccount.com
+  - target: { kind: Application, name: tempo }
+    patch: |-
+      - op: add
+        path: /spec/source/helm/valuesObject/tempo/storage
+        value:
+          trace:
+            backend: gcs
+            gcs:
+              bucket_name: shoplite-demo-1e7583-tempo
+            wal:
+              path: /var/tempo/wal
+      - op: add
+        path: /spec/source/helm/valuesObject/serviceAccount
+        value:
+          annotations:
+            iam.gke.io/gcp-service-account: shoplite-tempo@shoplite-demo-1e7583.iam.gserviceaccount.com
+
+  # --- Kong: TLS with the Cloudflare Origin certificate, real client IP from Cloudflare ---------
+  - target: { kind: Application, name: kong }
+    patch: |-
+      - op: add
+        path: /spec/source/helm/valuesObject/gateway/secretVolumes
+        value: [kong-origin-tls]
+      - op: add
+        path: /spec/source/helm/valuesObject/gateway/env/ssl_cert
+        value: /etc/secrets/kong-origin-tls/tls.crt
+      - op: add
+        path: /spec/source/helm/valuesObject/gateway/env/ssl_cert_key
+        value: /etc/secrets/kong-origin-tls/tls.key
+      - op: add
+        path: /spec/source/helm/valuesObject/gateway/env/real_ip_header
+        value: CF-Connecting-IP
+      # Cloudflare's published ranges (https://www.cloudflare.com/ips/). Verify before use:
+      # they decide whose CF-Connecting-IP header Kong believes (rate limiting is per IP).
+      - op: add
+        path: /spec/source/helm/valuesObject/gateway/env/trusted_ips
+        value: "173.245.48.0/20,103.21.244.0/22,103.22.200.0/22,103.31.4.0/22,141.101.64.0/18,108.162.192.0/18,190.93.240.0/20,188.114.96.0/20,197.234.240.0/22,198.41.128.0/17,162.158.0.0/15,104.16.0.0/13,104.24.0.0/14,172.64.0.0/13,131.0.72.0/22"

@@ -1,0 +1,3 @@
+# Only the frontend reads this (the file is named after the component).
+env:
+  OIDC_AUTHORITY: https://auth.neststack.site/realms/shoplite

@@ -1,0 +1,6 @@
+# Base for cluster overlays: every manifest in this directory.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - consumer.yaml
+  - plugins.yaml

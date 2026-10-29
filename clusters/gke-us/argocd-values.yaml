@@ -1,0 +1,54 @@
+# Layered on top of bootstrap/argocd-values.yaml (the k3d values) for the GKE cluster:
+# the first helm install (shoplite-infra/scripts/gke-up.sh) passes both files, and
+# platform/argocd.yaml (patched by this overlay) keeps passing both.
+global:
+  domain: argocd.neststack.site
+
+configs:
+  cm:
+    # Cloudflare terminates the public HTTPS; the browser sees https and so must the OIDC
+    # redirect URI sent to Keycloak.
+    url: https://argocd.neststack.site
+    # The issuer is the public URL: pods reach it through Cloudflare, no CoreDNS rewrite.
+    oidc.config: |
+      name: Keycloak
+      issuer: https://auth.neststack.site/realms/shoplite
+      clientID: argocd
+      clientSecret: $argocd-oidc:client-secret
+      requestedScopes: [openid, profile, email, groups]
+      logoutURL: https://auth.neststack.site/realms/shoplite/protocol/openid-connect/logout?id_token_hint={{token}}&post_logout_redirect_uri={{logoutRedirectURL}}
+    # Without a health check an ExternalSecret is "Healthy" the moment it exists, so a sync wave
+    # would not wait for the Secret to be created. Healthy = condition Ready is True.
+    resource.customizations.health.external-secrets.io_ExternalSecret: |
+      local hs = {}
+      if obj.status ~= nil and obj.status.conditions ~= nil then
+        for _, c in ipairs(obj.status.conditions) do
+          if c.type == "Ready" then
+            if c.status == "True" then
+              hs.status = "Healthy"
+              hs.message = c.message
+            else
+              hs.status = "Degraded"
+              hs.message = c.message
+            end
+            return hs
+          end
+        end
+      end
+      hs.status = "Progressing"
+      hs.message = "Waiting for the secret to be synced"
+      return hs
+    resource.customizations.health.external-secrets.io_ClusterSecretStore: |
+      local hs = {}
+      if obj.status ~= nil and obj.status.conditions ~= nil then
+        for _, c in ipairs(obj.status.conditions) do
+          if c.type == "Ready" then
+            hs.status = c.status == "True" and "Healthy" or "Degraded"
+            hs.message = c.message
+            return hs
+          end
+        end
+      end
+      hs.status = "Progressing"
+      hs.message = "Waiting for the store to validate"
+      return hs

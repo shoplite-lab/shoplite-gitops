@@ -1,0 +1,21 @@
+# App of apps for the GKE cluster. The only manifest applied by hand, by
+# shoplite-infra/scripts/gke-up.sh. Same idea as root-app.yaml, but it renders
+# clusters/gke-us (the k3d platform plus the GKE overlay) instead of platform/.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/shoplite-lab/shoplite-gitops.git
+    targetRevision: main
+    path: clusters/gke-us
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

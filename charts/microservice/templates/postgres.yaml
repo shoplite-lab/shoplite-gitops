@@ -1,4 +1,4 @@
-{{- if .Values.postgres.enabled }}
+{{- if and .Values.postgres.enabled (not .Values.postgres.external.enabled) }}
 # CloudNativePG creates: StatefulSet-like pods, Services <release>-db-rw / -ro / -r,
 # and the Secret <release>-db-app (username, password, jdbc-uri, ...) used by the Deployment.
 apiVersion: postgresql.cnpg.io/v1

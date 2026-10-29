@@ -1,0 +1,45 @@
+# external-dns: creates the DNS records for every Ingress host (shop., dev., auth., argocd.,
+# grafana., kafka.) in Cloudflare, pointing at Kong's load balancer. After a cluster rebuild
+# the load balancer has a new IP and the records follow by themselves: no reserved IP to pay for.
+# Records are proxied (orange cloud): Cloudflare terminates the public TLS and talks HTTPS
+# to Kong with the Origin certificate (see ../secrets: kong-origin-tls).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: external-dns
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-20"
+spec:
+  project: default
+  source:
+    repoURL: https://kubernetes-sigs.github.io/external-dns/
+    chart: external-dns
+    targetRevision: 1.23.0
+    helm:
+      releaseName: external-dns
+      valuesObject:
+        provider:
+          name: cloudflare
+        sources: [ingress]
+        domainFilters: [neststack.site]
+        policy: upsert-only # create and update records, never delete (cluster rebuilds are normal)
+        registry: txt
+        txtOwnerId: shoplite-gke-us
+        extraArgs:
+          - --cloudflare-proxied
+        env:
+          - name: CF_API_TOKEN
+            valueFrom:
+              secretKeyRef: { name: cloudflare-api-token, key: api-token }
+        resources:
+          requests: { cpu: 10m, memory: 32Mi }
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: external-dns
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

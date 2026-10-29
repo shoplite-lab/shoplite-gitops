@@ -1,0 +1,24 @@
+# Lets cluster overlays (clusters/<name>/) reuse this directory as a kustomize base.
+# k3d still points its root app straight at platform/: the output is the same objects.
+# Keep this list in step with the files here (scripts/check-kustomize-bases.sh verifies it).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - alloy.yaml
+  - argocd.yaml
+  - cert-manager.yaml
+  - cnpg-operator.yaml
+  - kafka-ui.yaml
+  - kafka.yaml
+  - keycloak-operator.yaml
+  - keycloak.yaml
+  - kong-config.yaml
+  - kong.yaml
+  - kube-prometheus-stack.yaml
+  - local-dns.yaml
+  - loki.yaml
+  - observability.yaml
+  - opentelemetry-operator.yaml
+  - shop.yaml
+  - strimzi-operator.yaml
+  - tempo.yaml

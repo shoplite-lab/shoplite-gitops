@@ -1,0 +1,5 @@
+# Lets cluster overlays reuse the ApplicationSet as a kustomize base (the apps/<svc>/ folders hold Helm values, not manifests).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - appset.yaml

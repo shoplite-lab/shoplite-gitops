@@ -94,3 +94,13 @@ postgres:
   database: ""
   owner: ""
   storage: 1Gi
+  # external: a managed Postgres outside the cluster (Neon, Cloud SQL...) instead of the
+  # CNPG Cluster above. Nothing is created for the database itself; instead an ExternalSecret
+  # builds the very same Secret <release>-db-app (host, port, dbname, username, password)
+  # from a Secret Manager secret holding that JSON, so the Deployment does not change.
+  # Needs the External Secrets Operator (GKE only; k3d keeps CNPG).
+  external:
+    enabled: false
+    sslMode: require
+    secretStore: gcp-secret-manager # name of the ClusterSecretStore
+    remoteKey: "" # Secret Manager secret name, e.g. shoplite-db-product-service-dev

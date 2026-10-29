@@ -1,0 +1,49 @@
+# platform-resources/keycloak with what changes on GKE:
+#   - Postgres is external: the CNPG Cluster is dropped, the Keycloak CR gets a JDBC URL
+#   - public hostname https://auth.<domain> (token iss claim and every redirect)
+#   - realm redirect URIs point at the real domain (realm-urls ConfigMap)
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../../platform-resources/keycloak
+
+# Same name as the base generator, new values.
+configMapGenerator:
+  - name: realm-urls
+    behavior: replace
+    literals:
+      - SHOP_PROD_URL=https://shop.neststack.site
+      - SHOP_DEV_URL=https://dev.neststack.site
+      - GRAFANA_URL=https://grafana.neststack.site
+      - ARGOCD_URL=https://argocd.neststack.site
+      - KAFKA_UI_URL=https://kafka.neststack.site
+generatorOptions:
+  disableNameSuffixHash: true
+
+patches:
+  - target: { group: postgresql.cnpg.io, kind: Cluster, name: keycloak-db }
+    patch: |-
+      $patch: delete
+      apiVersion: postgresql.cnpg.io/v1
+      kind: Cluster
+      metadata:
+        name: keycloak-db
+  - target: { group: k8s.keycloak.org, kind: Keycloak, name: keycloak }
+    patch: |-
+      - op: remove
+        path: /spec/db/host
+      - op: remove
+        path: /spec/db/database
+      # The Neon host name of the keycloak database: edit once after creating the project.
+      - op: add
+        path: /spec/db/url
+        value: jdbc:postgresql://ep-orange-hill-b5peya20.c-7.us-east-2.aws.neon.tech/keycloak?sslmode=require
+      - op: replace
+        path: /spec/hostname/hostname
+        value: https://auth.neststack.site
+  - target: { kind: Ingress, name: keycloak }
+    patch: |-
+      - op: replace
+        path: /spec/rules/0/host
+        value: auth.neststack.site

@@ -64,8 +64,8 @@ clients:
     # Password grant only so the README can show curl examples; disable for a real app.
     directAccessGrantsEnabled: true
     redirectUris:
-      - http://shop.localhost/*
-      - http://dev.shop.localhost/*
+      - $(env:SHOP_PROD_URL)/*
+      - $(env:SHOP_DEV_URL)/*
       - http://localhost:5173/*
     webOrigins: ["+"] # = origins of the redirect URIs
     attributes:
@@ -92,10 +92,10 @@ clients:
     secret: $(env:GRAFANA_CLIENT_SECRET)
     standardFlowEnabled: true
     directAccessGrantsEnabled: false
-    redirectUris: [http://grafana.localhost/login/generic_oauth]
+    redirectUris: [$(env:GRAFANA_URL)/login/generic_oauth]
     attributes:
       pkce.code.challenge.method: S256
-      post.logout.redirect.uris: http://grafana.localhost/login
+      post.logout.redirect.uris: $(env:GRAFANA_URL)/login
     defaultClientScopes: [web-origins, acr, profile, roles, basic, email, groups]
 
   - clientId: argocd
@@ -105,10 +105,10 @@ clients:
     standardFlowEnabled: true
     directAccessGrantsEnabled: false
     redirectUris:
-      - http://argocd.localhost/auth/callback
+      - $(env:ARGOCD_URL)/auth/callback
       - http://localhost:8085/auth/callback # `argocd login --sso` from a terminal
     attributes:
-      post.logout.redirect.uris: http://argocd.localhost##http://argocd.localhost/*
+      post.logout.redirect.uris: $(env:ARGOCD_URL)##$(env:ARGOCD_URL)/*
     defaultClientScopes: [web-origins, acr, profile, roles, basic, email, groups]
 
   # Kafbat UI (Spring Security OAuth2 client, redirect path /login/oauth2/code/<registration>).
@@ -118,9 +118,9 @@ clients:
     secret: $(env:KAFKA_UI_CLIENT_SECRET)
     standardFlowEnabled: true
     directAccessGrantsEnabled: false
-    redirectUris: [http://kafka.localhost/login/oauth2/code/keycloak]
+    redirectUris: [$(env:KAFKA_UI_URL)/login/oauth2/code/keycloak]
     attributes:
-      post.logout.redirect.uris: http://kafka.localhost/*
+      post.logout.redirect.uris: $(env:KAFKA_UI_URL)/*
     defaultClientScopes: [web-origins, acr, profile, roles, basic, email, groups]
 
 users:
