@@ -21,9 +21,13 @@ token() {
 }
 
 # POST one order (product 1, quantity 1); prints "<status> <seconds>".
+# A fresh idempotency key per call: two calls are two order intents, not a retry.
+new_key() { printf 'key-%s-%s' "$(date +%s%N)" "$RANDOM"; }
+
 place_order() {
   curl -s -o /dev/null -w '%{http_code} %{time_total}s\n' -X POST "http://$HOST/api/orders" \
     -H "Authorization: Bearer $1" -H 'Content-Type: application/json' \
+    -H "Idempotency-Key: $(new_key)" \
     -d '{"productId":1,"quantity":1}'
 }
 

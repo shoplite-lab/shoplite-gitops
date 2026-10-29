@@ -115,7 +115,7 @@ plugins:
     config:
       origins: ["http://localhost:5173", "http://shop.localhost:8000"]
       credentials: true
-      headers: [Authorization, Content-Type, X-Request-ID]
+      headers: [Authorization, Content-Type, X-Request-ID, Idempotency-Key]
   - name: prometheus
   - name: opentelemetry
     config:

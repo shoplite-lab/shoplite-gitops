@@ -30,7 +30,7 @@ plugin: cors
 config:
   origins: ["http://localhost:5173"]
   credentials: true
-  headers: [Authorization, Content-Type, X-Request-ID]
+  headers: [Authorization, Content-Type, X-Request-ID, Idempotency-Key]
 ---
 # Opt-in per route. Verifies the token at the edge (RS256 signature + exp) before the
 # request reaches a pod; services verify again and check roles (defense in depth).

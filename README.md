@@ -11,7 +11,7 @@ Nguồn sự thật (single source of truth) cho mọi thứ chạy trên Kubern
 | Keycloak Operator + realm-as-code + Kong JWT trên K8s | 4 | ✅ |
 | Observability (OTel, Prometheus, Loki, Tempo, Grafana) + SSO Grafana/Argo CD | 5 | ✅ |
 | GKE | 6 | ⏳ |
-| `scenarios/`: kịch bản vận hành (self-healing, HPA, rate limit, circuit breaker, Kafka lag, rollback) | 7 | ✅ |
+| `scenarios/`: kịch bản vận hành (self-healing, HPA, rate limit, circuit breaker, Kafka lag, idempotency, rollback) | 7 | ✅ |
 
 ## Kubernetes local (Phase 3)
 
@@ -197,6 +197,7 @@ bash scenarios/<script>.sh <lệnh>
 | Rate limit | `rate-limit.sh` | Kong chặn `/api/orders` quá 20 req/phút/IP bằng 429, request không tới service. Chạy sau cùng hoặc đợi 1 phút: quota dùng chung với các script đặt hàng khác | Output script, header `RateLimit-*` |
 | Circuit breaker | `circuit-breaker.sh break` → `status` → `restore` | product-service chết → order-service thử vài lần rồi **mở mạch**, trả 503 ngay không gọi nữa; bật lại → HALF_OPEN → CLOSED | Tempo: trace lỗi lúc đầu có span gọi product-service, sau đó không còn |
 | Kafka lag | `kafka-lag.sh break 5` → `status` → `restore` | notification-service chết nhưng **đặt hàng vẫn chạy** (bất đồng bộ); event nằm chờ trong Kafka, bật lại thì xử lý bù hết | Kafka UI › Consumers, Grafana panel *Kafka consumer lag*; `break 60` để thấy alert `KafkaConsumerLagHigh` |
+| Idempotency | `order-idempotency.sh` | 5 POST song song cùng `Idempotency-Key` → **một** order, **một** unit kho; cùng key khác payload → 422; thiếu key → 400. Double click không tạo hai đơn | Output script (stock/orders trước-sau), log order-service chỉ có một dòng `Order N placed`, tab *My orders* |
 
 `kafka-lag.sh break` tắt **auto-sync** của `notification-service-dev` trước khi scale về 0, nếu không Argo CD bật lại ngay. Đó là việc người ta làm thật khi xử lý sự cố: tạm ngắt GitOps cho đúng 1 app (ApplicationSet có `ignoreApplicationDifferences` cho `syncPolicy` để không ghi đè), xong việc bật lại và Argo CD tự đưa mọi thứ về như git. `circuit-breaker.sh` không cần bước này vì số replica của product-service do HPA quản, không nằm trong git.
 
